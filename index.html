@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Deep Sea Hunter - Fishing Arcade Game</title>
+    <!-- Google Fonts: Orbitron for futuristic arcade look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
     <style>
         * {
@@ -13,12 +17,12 @@
         }
         
         body {
-            background: linear-gradient(180deg, #001428 0%, #002851 50%, #001428 100%);
+            background: linear-gradient(180deg, #000a14 0%, #001428 30%, #002851 60%, #001428 100%);
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            font-family: 'Arial', sans-serif;
+            font-family: 'Orbitron', sans-serif;
             overflow: hidden;
         }
         
@@ -32,8 +36,12 @@
         #game-canvas {
             display: block;
             margin: 0 auto;
-            border-radius: 8px;
-            box-shadow: 0 0 30px rgba(0, 150, 255, 0.3);
+            border-radius: 12px;
+            box-shadow: 
+                0 0 30px rgba(0, 150, 255, 0.4),
+                0 0 60px rgba(0, 100, 200, 0.2),
+                inset 0 0 20px rgba(0, 200, 255, 0.1);
+            border: 3px solid rgba(0, 180, 255, 0.4);
         }
         
         #ui-overlay {
@@ -49,75 +57,144 @@
         }
         
         .ui-panel {
-            background: rgba(0, 20, 40, 0.85);
-            border: 2px solid rgba(0, 150, 255, 0.5);
-            border-radius: 8px;
-            padding: 10px 15px;
+            background: linear-gradient(180deg, rgba(0, 40, 80, 0.95) 0%, rgba(0, 20, 50, 0.95) 100%);
+            border: 2px solid rgba(0, 200, 255, 0.6);
+            border-radius: 10px;
+            padding: 12px 18px;
             color: #fff;
             pointer-events: auto;
+            box-shadow: 
+                0 0 15px rgba(0, 150, 255, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
         
+        /* ========== COIN DISPLAY WITH ICON ========== */
         #coin-display {
-            font-size: 18px;
-            font-weight: bold;
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
         }
         
-        #coin-display span {
+        .coin-icon {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #ffd700 0%, #ffaa00 50%, #ff8c00 100%);
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 
+                0 0 10px rgba(255, 215, 0, 0.6),
+                inset 0 -3px 6px rgba(0, 0, 0, 0.3),
+                inset 0 3px 6px rgba(255, 255, 255, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 900;
+            color: #8b4513;
+            text-shadow: none;
+        }
+        
+        #coin-value {
             color: #ffd700;
+            font-size: 22px;
+            text-shadow: 
+                0 0 10px rgba(255, 215, 0, 0.8),
+                0 0 20px rgba(255, 215, 0, 0.4);
+            animation: coinGlow 2s ease-in-out infinite;
         }
         
+        @keyframes coinGlow {
+            0%, 100% { text-shadow: 0 0 10px rgba(255, 215, 0, 0.8), 0 0 20px rgba(255, 215, 0, 0.4); }
+            50% { text-shadow: 0 0 15px rgba(255, 215, 0, 1), 0 0 30px rgba(255, 215, 0, 0.6); }
+        }
+        
+        /* ========== BULLET CONTROLS ========== */
         #bullet-controls {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
         }
         
         #bullet-level-display {
-            font-size: 16px;
-            color: #00ffff;
+            font-size: 14px;
+            color: #00e5ff;
+            text-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
+        }
+        
+        #bullet-level-display span {
+            color: #fff;
+            font-weight: 700;
         }
         
         .bullet-buttons {
             display: flex;
-            gap: 5px;
+            gap: 6px;
         }
         
+        /* ========== GRADIENT BUTTONS WITH HOVER EFFECTS ========== */
         .bullet-btn {
-            width: 36px;
-            height: 36px;
-            border: 2px solid #00aaff;
-            background: rgba(0, 100, 200, 0.5);
+            width: 40px;
+            height: 40px;
+            border: 2px solid rgba(0, 180, 255, 0.6);
+            background: linear-gradient(180deg, rgba(0, 80, 160, 0.8) 0%, rgba(0, 40, 100, 0.9) 100%);
             color: #fff;
-            font-weight: bold;
-            border-radius: 5px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            border-radius: 8px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
+            box-shadow: 
+                0 4px 8px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
         }
         
         .bullet-btn:hover {
-            background: rgba(0, 150, 255, 0.8);
-            transform: scale(1.1);
+            background: linear-gradient(180deg, rgba(0, 120, 200, 0.9) 0%, rgba(0, 80, 160, 0.95) 100%);
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 
+                0 6px 12px rgba(0, 150, 255, 0.4),
+                0 0 15px rgba(0, 200, 255, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            border-color: rgba(0, 220, 255, 0.8);
         }
         
         .bullet-btn.active {
-            background: #00aaff;
-            border-color: #fff;
+            background: linear-gradient(180deg, #00aaff 0%, #0077cc 100%);
+            border: 3px solid #ffd700;
+            box-shadow: 
+                0 0 15px rgba(255, 215, 0, 0.5),
+                0 0 25px rgba(0, 170, 255, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
         }
         
+        .bullet-btn.active:hover {
+            transform: translateY(-2px) scale(1.08);
+        }
+        
+        /* ========== BONUS INDICATOR ========== */
         #bonus-indicator {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 32px;
-            font-weight: bold;
+            font-size: 36px;
+            font-weight: 900;
             color: #fff;
-            text-shadow: 0 0 20px #00ffff, 0 0 40px #00aaff;
+            text-shadow: 
+                0 0 20px #00ffff, 
+                0 0 40px #00aaff,
+                0 0 60px #0066ff;
             opacity: 0;
             pointer-events: none;
             z-index: 200;
             text-align: center;
+            letter-spacing: 2px;
         }
         
         #bonus-indicator.active {
@@ -130,7 +207,7 @@
             100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
         }
         
-        /* Mobile responsive */
+        /* ========== MOBILE RESPONSIVE ========== */
         @media (max-width: 768px) {
             #ui-overlay {
                 top: 5px;
@@ -139,25 +216,66 @@
             }
             
             .ui-panel {
-                padding: 6px 10px;
+                padding: 8px 12px;
             }
             
             #coin-display {
-                font-size: 14px;
+                font-size: 16px;
+            }
+            
+            .coin-icon {
+                width: 22px;
+                height: 22px;
+                font-size: 11px;
+            }
+            
+            #coin-value {
+                font-size: 18px;
             }
             
             #bullet-level-display {
-                font-size: 12px;
+                font-size: 11px;
             }
             
             .bullet-btn {
-                width: 28px;
-                height: 28px;
+                width: 32px;
+                height: 32px;
                 font-size: 12px;
             }
             
             #bonus-indicator {
+                font-size: 26px;
+            }
+        }
+        
+        /* ========== DESKTOP ENHANCEMENTS ========== */
+        @media (min-width: 1024px) {
+            #game-container {
+                max-width: 1000px;
+            }
+            
+            .ui-panel {
+                padding: 14px 22px;
+            }
+            
+            #coin-display {
                 font-size: 24px;
+            }
+            
+            .coin-icon {
+                width: 32px;
+                height: 32px;
+                font-size: 16px;
+            }
+            
+            #coin-value {
+                font-size: 26px;
+            }
+            
+            .bullet-btn {
+                width: 46px;
+                height: 46px;
+                font-size: 16px;
             }
         }
     </style>
@@ -166,16 +284,19 @@
     <div id="game-container">
         <div id="ui-overlay">
             <div class="ui-panel" id="coin-display">
-                Coins: <span id="coin-value">1000</span>
+                <div class="coin-icon">$</div>
+                <span id="coin-value">1000</span>
             </div>
             <div class="ui-panel" id="bullet-controls">
-                <div id="bullet-level-display">Bullet: <span id="bullet-level">1</span>x (Cost: <span id="bullet-cost">10</span>)</div>
+                <div id="bullet-level-display">
+                    POWER: <span id="bullet-level">1</span>x | COST: <span id="bullet-cost">10</span>
+                </div>
                 <div class="bullet-buttons">
-                    <button class="bullet-btn active" data-level="1">1</button>
-                    <button class="bullet-btn" data-level="2">2</button>
-                    <button class="bullet-btn" data-level="3">3</button>
-                    <button class="bullet-btn" data-level="5">5</button>
-                    <button class="bullet-btn" data-level="10">10</button>
+                    <button class="bullet-btn active" data-level="1">1x</button>
+                    <button class="bullet-btn" data-level="2">2x</button>
+                    <button class="bullet-btn" data-level="3">3x</button>
+                    <button class="bullet-btn" data-level="5">5x</button>
+                    <button class="bullet-btn" data-level="10">10x</button>
                 </div>
             </div>
         </div>
