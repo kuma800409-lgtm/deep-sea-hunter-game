@@ -6,12 +6,12 @@ const { v4: uuidv4 } = require('uuid');
 // Seat positions for 4 players
 const SEATS = ['bottom', 'top', 'left', 'right'];
 
-// Cannon positions for each seat (x, y, angle)
+// Cannon positions for each seat (x, y, angle) - must match client 800x800 canvas
 const CANNON_POSITIONS = {
-    bottom: { x: 400, y: 570, angle: -90 },   // Points up
+    bottom: { x: 400, y: 770, angle: -90 },   // Points up
     top: { x: 400, y: 30, angle: 90 },        // Points down
-    left: { x: 30, y: 300, angle: 0 },        // Points right
-    right: { x: 770, y: 300, angle: 180 }     // Points left
+    left: { x: 30, y: 400, angle: 0 },        // Points right
+    right: { x: 770, y: 400, angle: 180 }     // Points left
 };
 
 class GameRoom {

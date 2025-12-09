@@ -1114,6 +1114,11 @@ function showBossEntrance(fish) {
     text.setOrigin(0.5);
     text.setDepth(200);
     
+    // Counter-rotate text to keep it upright relative to player's view
+    if (scene.cameras && scene.cameras.main) {
+        text.setRotation(-scene.cameras.main.rotation);
+    }
+    
     scene.tweens.add({
         targets: text,
         alpha: 0,
@@ -1207,6 +1212,11 @@ function showCaptureEffect(x, y, reward, playerId = null) {
     });
     text.setOrigin(0.5);
     text.setDepth(160);
+    
+    // Counter-rotate text to keep it upright relative to player's view
+    if (scene.cameras && scene.cameras.main) {
+        text.setRotation(-scene.cameras.main.rotation);
+    }
     
     // Scale up then fade out while rising
     scene.tweens.add({
@@ -1490,6 +1500,11 @@ function showBonusAnnouncement(bonusType, playerId) {
     text.setOrigin(0.5);
     text.setDepth(200);
     
+    // Counter-rotate text to keep it upright relative to player's view
+    if (scene.cameras && scene.cameras.main) {
+        text.setRotation(-scene.cameras.main.rotation);
+    }
+    
     scene.tweens.add({
         targets: text,
         scale: { from: 0.5, to: 1.5 },
@@ -1604,6 +1619,11 @@ function showErrorMessage(message) {
     });
     text.setOrigin(0.5);
     text.setDepth(250);
+    
+    // Counter-rotate text to keep it upright relative to player's view
+    if (scene.cameras && scene.cameras.main) {
+        text.setRotation(-scene.cameras.main.rotation);
+    }
     
     scene.tweens.add({
         targets: text,
