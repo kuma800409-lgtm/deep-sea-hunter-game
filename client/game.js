@@ -1153,9 +1153,9 @@ function showCaptureEffect(x, y, reward, playerId = null) {
     // Water ripple at capture point
     spawnRipple(x, y, 0xffd700, 50);
     
-    // Particle burst (cyan/white particles)
-    for (let i = 0; i < 16; i++) {
-        const angle = (i / 16) * Math.PI * 2;
+    // Particle burst (cyan/white particles) - reduced count for performance
+    for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
         const color = i % 2 === 0 ? 0x00ffff : 0xffffff;
         const particle = scene.add.circle(x, y, 4, color);
         particle.setDepth(150);
@@ -1171,11 +1171,11 @@ function showCaptureEffect(x, y, reward, playerId = null) {
         });
     }
     
-    // Sparkles flying to player cannon
+    // Sparkles flying to player cannon - reduced count for performance
     const targetPlayerId = playerId || GameState.playerId;
     const cannonPos = getCannonPosition(targetPlayerId);
     if (cannonPos) {
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 3; i++) {
             const sparkle = scene.add.circle(x, y, 3, 0xffd700);
             sparkle.setDepth(155);
             
@@ -1356,14 +1356,14 @@ function createBullet(data) {
     GameState.bullets[bulletId] = bullet;
     scene.bulletGroup.add(bullet);
     
-    // Muzzle flash at cannon (color matches bullet)
-    const flash = scene.add.circle(fromPosition.x, fromPosition.y, 15, colors.core, 0.8);
+    // Muzzle flash at cannon (color matches bullet) - reduced intensity for smoother visuals
+    const flash = scene.add.circle(fromPosition.x, fromPosition.y, 12, colors.core, 0.5);
     flash.setDepth(90);
     scene.tweens.add({
         targets: flash,
         alpha: 0,
-        scale: 2,
-        duration: 100,
+        scale: 1.5,
+        duration: 80,
         onComplete: () => flash.destroy()
     });
     
@@ -1402,15 +1402,15 @@ function updateBullets(delta) {
         bullet.x += bullet.velocityX * dt;
         bullet.y += bullet.velocityY * dt;
         
-        // Spawn trail particles
+        // Spawn trail particles (throttled to reduce object creation)
         bullet.trailTimer += delta;
-        if (bullet.trailTimer > 30) { // Every 30ms
+        if (bullet.trailTimer > 100) { // Every 100ms (reduced from 30ms for performance)
             bullet.trailTimer = 0;
             spawnBulletTrail(bullet);
         }
         
-        // Remove if out of bounds
-        if (bullet.x < -50 || bullet.x > 850 || bullet.y < -50 || bullet.y > 650) {
+        // Remove if out of bounds (800x800 canvas)
+        if (bullet.x < -50 || bullet.x > 850 || bullet.y < -50 || bullet.y > 850) {
             removeBullet(bulletId);
         }
     }
