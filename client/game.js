@@ -206,6 +206,320 @@ const PerformanceState = {
     particleCount: 0
 };
 
+// ============== FISH MOVEMENT SYSTEM ==============
+// Smooth movement with interpolation and diverse patterns
+
+// Movement pattern types
+const MovementPatterns = {
+    STRAIGHT: 'straight',
+    SINE_WAVE: 'sine_wave',
+    BEZIER_CURVE: 'bezier_curve',
+    RANDOM_TURN: 'random_turn',
+    ZIGZAG: 'zigzag'
+};
+
+// Species-specific movement configuration
+const SPECIES_MOVEMENT_CONFIG = {
+    // Small fish - Fast with sine wave (realistic swimming)
+    shrimp: { pattern: 'SINE_WAVE', amplitude: 12, frequency: 4 },
+    clownfish: { pattern: 'SINE_WAVE', amplitude: 18, frequency: 3 },
+    seahorse: { pattern: 'SINE_WAVE', amplitude: 8, frequency: 2 },
+    starfish: { pattern: 'STRAIGHT' },
+    
+    // Medium fish - Varied patterns
+    crab: { pattern: 'RANDOM_TURN', turnInterval: 1500, angleRange: Math.PI / 3 },
+    jellyfish: { pattern: 'SINE_WAVE', amplitude: 20, frequency: 1.5 },
+    angelfish: { pattern: 'BEZIER_CURVE' },
+    pufferfish: { pattern: 'ZIGZAG', amplitude: 15, frequency: 2 },
+    octopus: { pattern: 'BEZIER_CURVE' },
+    
+    // Large fish - Smooth curves or straight
+    turtle: { pattern: 'STRAIGHT' },
+    swordfish: { pattern: 'STRAIGHT' },
+    dolphin: { pattern: 'SINE_WAVE', amplitude: 25, frequency: 1 },
+    stingray: { pattern: 'BEZIER_CURVE' },
+    shark: { pattern: 'RANDOM_TURN', turnInterval: 2500, angleRange: Math.PI / 4 },
+    
+    // Giant/Boss fish - Majestic slow curves
+    whale: { pattern: 'BEZIER_CURVE' },
+    mantaray: { pattern: 'BEZIER_CURVE' },
+    hammerhead: { pattern: 'RANDOM_TURN', turnInterval: 3000, angleRange: Math.PI / 5 },
+    giantSquid: { pattern: 'RANDOM_TURN', turnInterval: 2000, angleRange: Math.PI / 3 },
+    seaDragon: { pattern: 'SINE_WAVE', amplitude: 30, frequency: 0.8 },
+    kraken: { pattern: 'RANDOM_TURN', turnInterval: 1800, angleRange: Math.PI / 2 },
+    
+    // Special
+    goldenFish: { pattern: 'SINE_WAVE', amplitude: 15, frequency: 2.5 }
+};
+
+// Base movement controller with interpolation
+class FishMovementController {
+    constructor(fish, targetX, targetY, speed, duration) {
+        this.fish = fish;
+        this.startX = fish.x;
+        this.startY = fish.y;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.speed = speed;
+        this.duration = duration;
+        this.elapsed = 0;
+        
+        // Interpolation for smooth rendering
+        this.currentX = fish.x;
+        this.currentY = fish.y;
+        this.displayX = fish.x;
+        this.displayY = fish.y;
+        this.interpolationSpeed = 0.15;
+        
+        // Calculate base angle
+        this.baseAngle = Math.atan2(targetY - fish.y, targetX - fish.x);
+        this.currentAngle = this.baseAngle;
+        
+        // Movement time tracking
+        this.time = 0;
+    }
+    
+    update(delta) {
+        // Convert delta from ms to seconds
+        const dt = delta / 1000;
+        this.time += dt;
+        this.elapsed += delta;
+        
+        // Calculate progress (0 to 1)
+        const progress = Math.min(this.elapsed / this.duration, 1);
+        
+        // Get position from movement pattern
+        const pos = this.calculatePosition(progress, dt);
+        this.currentX = pos.x;
+        this.currentY = pos.y;
+        
+        // Smooth interpolation for display
+        this.displayX += (this.currentX - this.displayX) * this.interpolationSpeed;
+        this.displayY += (this.currentY - this.displayY) * this.interpolationSpeed;
+        
+        // Apply to fish
+        this.fish.x = this.displayX;
+        this.fish.y = this.displayY;
+        
+        // Update rotation smoothly
+        const targetAngle = this.currentAngle;
+        const currentRotation = this.fish.rotation;
+        const angleDiff = targetAngle - currentRotation;
+        this.fish.rotation += angleDiff * 0.1;
+        
+        return progress >= 1;
+    }
+    
+    calculatePosition(progress, dt) {
+        // Base linear interpolation - override in subclasses
+        return {
+            x: this.startX + (this.targetX - this.startX) * progress,
+            y: this.startY + (this.targetY - this.startY) * progress
+        };
+    }
+    
+    handleBoundary(bounds) {
+        const margin = 50;
+        let bounced = false;
+        
+        if (this.currentX < margin) {
+            this.currentAngle = Math.PI - this.currentAngle + (Math.random() - 0.5) * 0.2;
+            this.currentX = margin;
+            bounced = true;
+        } else if (this.currentX > bounds.width - margin) {
+            this.currentAngle = Math.PI - this.currentAngle + (Math.random() - 0.5) * 0.2;
+            this.currentX = bounds.width - margin;
+            bounced = true;
+        }
+        
+        if (this.currentY < margin) {
+            this.currentAngle = -this.currentAngle + (Math.random() - 0.5) * 0.2;
+            this.currentY = margin;
+            bounced = true;
+        } else if (this.currentY > bounds.height - margin) {
+            this.currentAngle = -this.currentAngle + (Math.random() - 0.5) * 0.2;
+            this.currentY = bounds.height - margin;
+            bounced = true;
+        }
+        
+        return bounced;
+    }
+}
+
+// Sine wave movement - fish oscillates perpendicular to travel direction
+class SineWaveMovement extends FishMovementController {
+    constructor(fish, targetX, targetY, speed, duration, amplitude = 15, frequency = 2) {
+        super(fish, targetX, targetY, speed, duration);
+        this.amplitude = amplitude;
+        this.frequency = frequency;
+        this.phaseOffset = Math.random() * Math.PI * 2; // Random start phase
+    }
+    
+    calculatePosition(progress, dt) {
+        // Base linear position
+        const baseX = this.startX + (this.targetX - this.startX) * progress;
+        const baseY = this.startY + (this.targetY - this.startY) * progress;
+        
+        // Sine wave offset perpendicular to movement
+        const waveOffset = Math.sin(this.time * this.frequency + this.phaseOffset) * this.amplitude;
+        const perpAngle = this.baseAngle + Math.PI / 2;
+        
+        // Update current angle based on wave motion
+        const waveVelocity = Math.cos(this.time * this.frequency + this.phaseOffset) * this.amplitude * this.frequency;
+        this.currentAngle = this.baseAngle + Math.atan2(waveVelocity * 0.1, this.speed);
+        
+        return {
+            x: baseX + Math.cos(perpAngle) * waveOffset,
+            y: baseY + Math.sin(perpAngle) * waveOffset
+        };
+    }
+}
+
+// Bezier curve movement - smooth curved paths
+class BezierMovement extends FishMovementController {
+    constructor(fish, targetX, targetY, speed, duration) {
+        super(fish, targetX, targetY, speed, duration);
+        this.generateControlPoints();
+    }
+    
+    generateControlPoints() {
+        const dx = this.targetX - this.startX;
+        const dy = this.targetY - this.startY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // Generate control points with some randomness
+        const curvature = (Math.random() - 0.5) * dist * 0.5;
+        const perpAngle = this.baseAngle + Math.PI / 2;
+        
+        this.control1 = {
+            x: this.startX + dx * 0.33 + Math.cos(perpAngle) * curvature,
+            y: this.startY + dy * 0.33 + Math.sin(perpAngle) * curvature
+        };
+        this.control2 = {
+            x: this.startX + dx * 0.66 - Math.cos(perpAngle) * curvature * 0.5,
+            y: this.startY + dy * 0.66 - Math.sin(perpAngle) * curvature * 0.5
+        };
+    }
+    
+    calculatePosition(progress, dt) {
+        const t = progress;
+        const u = 1 - t;
+        const tt = t * t;
+        const uu = u * u;
+        const uuu = uu * u;
+        const ttt = tt * t;
+        
+        const x = uuu * this.startX + 
+                  3 * uu * t * this.control1.x + 
+                  3 * u * tt * this.control2.x + 
+                  ttt * this.targetX;
+        const y = uuu * this.startY + 
+                  3 * uu * t * this.control1.y + 
+                  3 * u * tt * this.control2.y + 
+                  ttt * this.targetY;
+        
+        // Calculate tangent for rotation
+        const tangentX = 3 * uu * (this.control1.x - this.startX) +
+                        6 * u * t * (this.control2.x - this.control1.x) +
+                        3 * tt * (this.targetX - this.control2.x);
+        const tangentY = 3 * uu * (this.control1.y - this.startY) +
+                        6 * u * t * (this.control2.y - this.control1.y) +
+                        3 * tt * (this.targetY - this.control2.y);
+        
+        this.currentAngle = Math.atan2(tangentY, tangentX);
+        
+        return { x, y };
+    }
+}
+
+// Random turn movement - occasionally changes direction
+class RandomTurnMovement extends FishMovementController {
+    constructor(fish, targetX, targetY, speed, duration, turnInterval = 2000, angleRange = Math.PI / 4) {
+        super(fish, targetX, targetY, speed, duration);
+        this.turnInterval = turnInterval;
+        this.angleRange = angleRange;
+        this.timeSinceTurn = 0;
+        this.velocityX = Math.cos(this.baseAngle) * speed;
+        this.velocityY = Math.sin(this.baseAngle) * speed;
+    }
+    
+    calculatePosition(progress, dt) {
+        this.timeSinceTurn += dt * 1000;
+        
+        // Random turn check
+        if (this.timeSinceTurn >= this.turnInterval) {
+            const angleChange = (Math.random() - 0.5) * this.angleRange;
+            this.currentAngle += angleChange;
+            this.velocityX = Math.cos(this.currentAngle) * this.speed;
+            this.velocityY = Math.sin(this.currentAngle) * this.speed;
+            this.timeSinceTurn = 0;
+        }
+        
+        // Move based on velocity
+        const newX = this.currentX + this.velocityX * dt;
+        const newY = this.currentY + this.velocityY * dt;
+        
+        return { x: newX, y: newY };
+    }
+}
+
+// Zigzag movement - sharp direction changes
+class ZigzagMovement extends FishMovementController {
+    constructor(fish, targetX, targetY, speed, duration, amplitude = 15, frequency = 2) {
+        super(fish, targetX, targetY, speed, duration);
+        this.amplitude = amplitude;
+        this.frequency = frequency;
+        this.phaseOffset = Math.random() * Math.PI * 2;
+    }
+    
+    calculatePosition(progress, dt) {
+        const baseX = this.startX + (this.targetX - this.startX) * progress;
+        const baseY = this.startY + (this.targetY - this.startY) * progress;
+        
+        // Triangle wave for zigzag
+        const phase = (this.time * this.frequency + this.phaseOffset) % (Math.PI * 2);
+        const triangleWave = Math.abs((phase / Math.PI) % 2 - 1) * 2 - 1;
+        const offset = triangleWave * this.amplitude;
+        
+        const perpAngle = this.baseAngle + Math.PI / 2;
+        
+        // Sharp angle changes
+        this.currentAngle = this.baseAngle + (triangleWave > 0 ? 0.3 : -0.3);
+        
+        return {
+            x: baseX + Math.cos(perpAngle) * offset,
+            y: baseY + Math.sin(perpAngle) * offset
+        };
+    }
+}
+
+// Factory function to create movement controller based on species
+function createMovementController(fish, speciesId, targetX, targetY, speed, duration) {
+    const config = SPECIES_MOVEMENT_CONFIG[speciesId] || { pattern: 'STRAIGHT' };
+    
+    switch (config.pattern) {
+        case 'SINE_WAVE':
+            return new SineWaveMovement(
+                fish, targetX, targetY, speed, duration,
+                config.amplitude || 15, config.frequency || 2
+            );
+        case 'BEZIER_CURVE':
+            return new BezierMovement(fish, targetX, targetY, speed, duration);
+        case 'RANDOM_TURN':
+            return new RandomTurnMovement(
+                fish, targetX, targetY, speed, duration,
+                config.turnInterval || 2000, config.angleRange || Math.PI / 4
+            );
+        case 'ZIGZAG':
+            return new ZigzagMovement(
+                fish, targetX, targetY, speed, duration,
+                config.amplitude || 15, config.frequency || 2
+            );
+        default:
+            return new FishMovementController(fish, targetX, targetY, speed, duration);
+    }
+}
+
 function preload() {
     scene = this;
     // Create textures procedurally
@@ -1012,14 +1326,15 @@ function spawnFish(data) {
     GameState.fish[fishId] = fish;
     scene.fishGroup.add(fish);
     
-    // Movement tween
-    scene.tweens.add({
-        targets: fish,
-        x: target.x,
-        y: target.y,
-        duration: duration,
-        ease: 'Linear'
-    });
+    // Create movement controller based on species (replaces tween for smooth movement)
+    fish.movementController = createMovementController(
+        fish, 
+        fish.speciesId, 
+        target.x, 
+        target.y, 
+        speed, 
+        duration
+    );
     
     // Animations
     startFishAnimationsTopDown(fish, fishType);
@@ -1406,7 +1721,32 @@ function showHitEffect(x, y) {
 }
 
 function updateFishAnimations(delta) {
-    // Fish animations are handled by tweens
+    // Update all fish movement controllers for smooth interpolated movement
+    const fishToRemove = [];
+    const bounds = { width: 800, height: 800 };
+    
+    for (const fishId in GameState.fish) {
+        const fish = GameState.fish[fishId];
+        if (fish && fish.movementController) {
+            // Update movement with interpolation
+            const completed = fish.movementController.update(delta);
+            
+            // Handle boundary collisions for random turn fish
+            if (fish.movementController.handleBoundary) {
+                fish.movementController.handleBoundary(bounds);
+            }
+            
+            // Mark for removal if movement completed
+            if (completed) {
+                fishToRemove.push(fishId);
+            }
+        }
+    }
+    
+    // Remove fish that have completed their movement
+    for (const fishId of fishToRemove) {
+        removeFish(fishId);
+    }
 }
 
 // ============== BULLETS ==============
