@@ -192,8 +192,8 @@ class GameRoom {
             bullet.x += bullet.velocityX * deltaTime;
             bullet.y += bullet.velocityY * deltaTime;
             
-            // Check if bullet is out of bounds
-            if (bullet.x < -50 || bullet.x > 850 || bullet.y < -50 || bullet.y > 650) {
+            // Check if bullet is out of bounds (800x800 canvas with 50px margin)
+            if (bullet.x < -50 || bullet.x > 850 || bullet.y < -50 || bullet.y > 850) {
                 bulletsToRemove.push(bulletId);
                 continue;
             }
