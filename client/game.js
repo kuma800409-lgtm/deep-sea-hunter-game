@@ -339,8 +339,8 @@ function createParticleTextures() {
 // ============== SOCKET CONNECTION ==============
 
 function initSocket() {
-    // Connect to server
-    const serverUrl = window.location.origin;
+    // Connect to server - use configured URL or same origin
+    const serverUrl = window.SERVER_URL || window.location.origin;
     GameState.socket = io(serverUrl);
     
     const socket = GameState.socket;
