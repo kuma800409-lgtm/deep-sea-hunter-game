@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Sea Hunter V2.0 - Multiplayer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(180deg, #001a33 0%, #000d1a 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+        }
+        
+        #game-container {
+            position: relative;
+            border: 3px solid #00ffff;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.3),
+                        inset 0 0 30px rgba(0, 255, 255, 0.1);
+        }
+        
+        #game-canvas {
+            display: block;
+        }
+        
+        /* Lobby UI */
+        #lobby-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 26, 51, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        #lobby-overlay.hidden {
+            display: none;
+        }
+        
+        .lobby-title {
+            font-size: 32px;
+            color: #00ffff;
+            text-shadow: 0 0 20px #00ffff;
+            margin-bottom: 30px;
+        }
+        
+        .lobby-subtitle {
+            font-size: 14px;
+            color: #ffd700;
+            margin-bottom: 20px;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: block;
+            color: #00ffff;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        
+        .input-group input {
+            background: rgba(0, 255, 255, 0.1);
+            border: 2px solid #00ffff;
+            border-radius: 5px;
+            padding: 10px 20px;
+            color: #fff;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            width: 250px;
+        }
+        
+        .input-group input:focus {
+            outline: none;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+        
+        .lobby-btn {
+            background: linear-gradient(180deg, #00ffff 0%, #0088aa 100%);
+            border: none;
+            border-radius: 5px;
+            padding: 12px 30px;
+            color: #001a33;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+        
+        .lobby-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+        
+        .lobby-btn.ready {
+            background: linear-gradient(180deg, #ffd700 0%, #cc9900 100%);
+        }
+        
+        .lobby-btn.start {
+            background: linear-gradient(180deg, #00ff00 0%, #00aa00 100%);
+        }
+        
+        #players-list {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(0, 255, 255, 0.1);
+            border-radius: 10px;
+            min-width: 300px;
+        }
+        
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 15px;
+            margin: 5px 0;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            color: #fff;
+            font-size: 12px;
+        }
+        
+        .player-item.ready {
+            border-left: 3px solid #00ff00;
+        }
+        
+        .player-seat {
+            color: #ffd700;
+            font-size: 10px;
+        }
+        
+        .player-status {
+            color: #00ff00;
+            font-size: 10px;
+        }
+        
+        #room-info {
+            color: #888;
+            font-size: 10px;
+            margin-top: 10px;
+        }
+        
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+        
+        #hud.hidden {
+            display: none;
+        }
+        
+        .player-hud {
+            position: absolute;
+            background: rgba(0, 26, 51, 0.8);
+            border: 2px solid #00ffff;
+            border-radius: 8px;
+            padding: 8px 12px;
+            pointer-events: auto;
+        }
+        
+        .player-hud.bottom { bottom: 80px; left: 50%; transform: translateX(-50%); }
+        .player-hud.top { top: 80px; left: 50%; transform: translateX(-50%); }
+        .player-hud.left { left: 80px; top: 50%; transform: translateY(-50%); }
+        .player-hud.right { right: 80px; top: 50%; transform: translateY(-50%); }
+        
+        .player-name {
+            color: #00ffff;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        
+        .player-coins {
+            color: #ffd700;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .player-coins::before {
+            content: '$';
+        }
+        
+        /* Controls */
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 60;
+            pointer-events: auto;
+        }
+        
+        #controls.hidden {
+            display: none;
+        }
+        
+        .control-btn {
+            background: linear-gradient(180deg, #003d66 0%, #001a33 100%);
+            border: 2px solid #00ffff;
+            border-radius: 5px;
+            padding: 8px 15px;
+            color: #00ffff;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .control-btn:hover {
+            background: linear-gradient(180deg, #005588 0%, #003355 100%);
+        }
+        
+        .control-btn.active {
+            background: linear-gradient(180deg, #ffd700 0%, #cc9900 100%);
+            color: #001a33;
+            border-color: #ffd700;
+        }
+        
+        .control-btn.auto {
+            background: linear-gradient(180deg, #ff00ff 0%, #aa00aa 100%);
+            border-color: #ff00ff;
+            color: #fff;
+        }
+        
+        .control-btn.auto.active {
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 10px #ff00ff; }
+            50% { box-shadow: 0 0 25px #ff00ff; }
+        }
+        
+        /* Connection status */
+        #connection-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 10px;
+            z-index: 70;
+        }
+        
+        #connection-status.connected {
+            background: rgba(0, 255, 0, 0.2);
+            color: #00ff00;
+            border: 1px solid #00ff00;
+        }
+        
+        #connection-status.disconnected {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff0000;
+            border: 1px solid #ff0000;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="game-canvas"></div>
+        
+        <!-- Lobby Overlay -->
+        <div id="lobby-overlay">
+            <h1 class="lobby-title">DEEP SEA HUNTER V2.0</h1>
+            <p class="lobby-subtitle">MULTIPLAYER EDITION</p>
+            
+            <div class="input-group">
+                <label>YOUR NAME</label>
+                <input type="text" id="player-name" placeholder="Enter your name" maxlength="12">
+            </div>
+            
+            <div class="input-group">
+                <label>ROOM CODE (optional)</label>
+                <input type="text" id="room-code" placeholder="Leave empty for auto-match" maxlength="8">
+            </div>
+            
+            <button class="lobby-btn" id="join-btn">JOIN GAME</button>
+            
+            <div id="players-list" style="display: none;">
+                <div style="color: #00ffff; font-size: 12px; margin-bottom: 10px;">PLAYERS IN ROOM</div>
+                <div id="players-container"></div>
+            </div>
+            
+            <div id="lobby-buttons" style="display: none;">
+                <button class="lobby-btn ready" id="ready-btn">READY</button>
+                <button class="lobby-btn start" id="start-btn" style="display: none;">START GAME</button>
+            </div>
+            
+            <div id="room-info"></div>
+        </div>
+        
+        <!-- HUD -->
+        <div id="hud" class="hidden"></div>
+        
+        <!-- Controls -->
+        <div id="controls" class="hidden">
+            <button class="control-btn active" data-level="1">1x</button>
+            <button class="control-btn" data-level="2">2x</button>
+            <button class="control-btn" data-level="3">3x</button>
+            <button class="control-btn" data-level="5">5x</button>
+            <button class="control-btn" data-level="10">10x</button>
+            <button class="control-btn auto" id="auto-btn">AUTO (100)</button>
+        </div>
+        
+        <!-- Connection Status -->
+        <div id="connection-status" class="disconnected">DISCONNECTED</div>
+    </div>
+    
+    <script src="game.js"></script>
+</body>
+</html>
