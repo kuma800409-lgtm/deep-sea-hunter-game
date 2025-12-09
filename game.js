@@ -8,11 +8,11 @@
 const PROBABILITY_TABLE = {
     baseBulletCost: 10,
     fishTypes: {
-        small: { name: 'Small Fish', multiplierRange: [2, 5], baseCaptureProb: 0.255, spawnWeight: 50, speed: { min: 80, max: 150 }, size: 35, color: 0x00e5ff, bodyColor: 0x00bcd4, finColor: 0x4dd0e1, swimSpeed: 1.5, tailSpeed: 2.0 },
-        medium: { name: 'Medium Fish', multiplierRange: [6, 12], baseCaptureProb: 0.1025, spawnWeight: 25, speed: { min: 60, max: 100 }, size: 60, color: 0xff7043, bodyColor: 0xff5722, finColor: 0xffab91, hasPattern: true, swimSpeed: 1.2, tailSpeed: 1.5 },
-        large: { name: 'Large Fish', multiplierRange: [15, 35], baseCaptureProb: 0.037, spawnWeight: 15, speed: { min: 40, max: 70 }, size: 100, color: 0x9c27b0, bodyColor: 0x7b1fa2, finColor: 0xce93d8, swimSpeed: 0.8, tailSpeed: 1.0 },
-        boss: { name: 'Boss Fish', multiplierRange: [50, 100], baseCaptureProb: 0.0135, spawnWeight: 5, speed: { min: 20, max: 40 }, size: 180, color: 0xc62828, bodyColor: 0xb71c1c, finColor: 0xffd700, hasGlow: true, swimSpeed: 0.5, tailSpeed: 0.7, hasScreenShake: true },
-        special: { name: 'Special Fish', multiplierRange: [20, 20], baseCaptureProb: 0.044, spawnWeight: 5, speed: { min: 50, max: 80 }, size: 70, color: 0xffc107, bodyColor: 0xffb300, finColor: 0xffe082, isSpecial: true, hasSparkle: true, swimSpeed: 1.0, tailSpeed: 1.3 }
+        small: { name: 'Small Fish', multiplierRange: [2, 5], baseCaptureProb: 0.255, spawnWeight: 50, speed: { min: 80, max: 150 }, size: 45, hitRadius: 30, color: 0x00e5ff, bodyColor: 0x00bcd4, finColor: 0x4dd0e1, glowColor: 0x27c8ff, swimSpeed: 1.5, tailSpeed: 2.0 },
+        medium: { name: 'Medium Fish', multiplierRange: [6, 12], baseCaptureProb: 0.1025, spawnWeight: 25, speed: { min: 60, max: 100 }, size: 70, hitRadius: 45, color: 0xff7043, bodyColor: 0xff5722, finColor: 0xffab91, glowColor: 0xff6b35, hasPattern: true, swimSpeed: 1.2, tailSpeed: 1.5 },
+        large: { name: 'Large Fish', multiplierRange: [15, 35], baseCaptureProb: 0.037, spawnWeight: 15, speed: { min: 40, max: 70 }, size: 110, hitRadius: 60, color: 0x9c27b0, bodyColor: 0x7b1fa2, finColor: 0xce93d8, glowColor: 0xff3da8, swimSpeed: 0.8, tailSpeed: 1.0 },
+        boss: { name: 'Boss Fish', multiplierRange: [50, 100], baseCaptureProb: 0.0135, spawnWeight: 5, speed: { min: 20, max: 40 }, size: 160, hitRadius: 80, color: 0xc62828, bodyColor: 0xb71c1c, finColor: 0xffd700, glowColor: 0xff3da8, hasGlow: true, swimSpeed: 0.5, tailSpeed: 0.7, hasScreenShake: true },
+        special: { name: 'Special Fish', multiplierRange: [20, 20], baseCaptureProb: 0.044, spawnWeight: 5, speed: { min: 50, max: 80 }, size: 80, hitRadius: 50, color: 0xffc107, bodyColor: 0xffb300, finColor: 0xffe082, glowColor: 0xffc857, isSpecial: true, hasSparkle: true, swimSpeed: 1.0, tailSpeed: 1.3 }
     },
     bulletLevelBonus: { 1: 1.0, 2: 1.01, 3: 1.02, 5: 1.04, 10: 1.08 },
     bonusFeatures: { lockAndFreeze: { probability: 0.33, name: 'LOCK & FREEZE' }, chainLightning: { probability: 0.33, name: 'CHAIN LIGHTNING' }, fullScreenClear: { probability: 0.34, name: 'FULL SCREEN CLEAR' } }
@@ -39,8 +39,16 @@ class GameScene extends Phaser.Scene {
     create() {
         this.createOceanBackground(); this.createCausticPatterns(); this.createCoralReef();
         this.createRockFormations(); this.createLightRays(); this.createLightParticles();
-        this.fishGroup = this.add.group(); this.bulletGroup = this.add.group();
+        
+        // Create physics groups for reliable collision detection
+        this.fishGroup = this.physics.add.group();
+        this.bulletGroup = this.physics.add.group();
+        
         this.createCannon(); this.createParticleTextures();
+        
+        // Set up physics overlap with validation callback
+        this.physics.add.overlap(this.bulletGroup, this.fishGroup, this.onBulletHitFish, this.validateCollision, this);
+        
         this.input.on('pointerdown', this.handleClick, this);
         this.input.on('pointermove', this.handlePointerMove, this);
         this.time.addEvent({ delay: 1500, callback: this.spawnFish, callbackScope: this, loop: true });
@@ -221,6 +229,8 @@ class GameScene extends Phaser.Scene {
         fish.multiplier = getRandomInRange(fishConfig.multiplierRange[0], fishConfig.multiplierRange[1]);
         fish.fishType = fishType; fish.captureProb = fishConfig.baseCaptureProb;
         fish.isSpecial = fishConfig.isSpecial || false; fish.direction = targetX > x ? 1 : -1;
+        fish.hitCooldown = 0; // Initialize hit cooldown for collision detection
+        fish.hitRadius = fishConfig.hitRadius || fishConfig.size * 0.7;
         const colorInfo = getMultiplierColor(fish.multiplier);
         const multiplierText = this.add.text(x, y - fishConfig.size - 5, fish.multiplier + 'x', {
             fontSize: fishType === 'boss' ? '18px' : '14px', fontFamily: 'Orbitron, Arial', fontStyle: 'bold',
@@ -256,32 +266,68 @@ class GameScene extends Phaser.Scene {
 
     drawFishBody(fish, fishType, config) {
         const g = fish.bodyGraphics; const s = config.size; g.clear();
+        const glowColor = config.glowColor || config.color;
+        
+        // Add rim lighting effect for all fish (outer glow)
+        g.fillStyle(glowColor, 0.15); g.fillEllipse(0, 0, s * 0.55, s * 0.4);
+        
         if (fishType === 'boss') {
+            // Boss fish - mythical creature with dramatic appearance
+            g.fillStyle(glowColor, 0.2); g.fillEllipse(0, 0, s * 1.5, s * 0.9); // Outer glow
             g.fillStyle(config.bodyColor); g.fillEllipse(0, 0, s * 1.4, s * 0.8);
             g.fillStyle(config.color, 0.8); g.fillEllipse(0, -s * 0.1, s * 1.2, s * 0.6);
-            g.fillStyle(0xffd700, 0.3); for (let i = 0; i < 5; i++) g.fillCircle(-s * 0.3 + i * s * 0.15, 0, s * 0.08);
+            // Rim highlight on top
+            g.fillStyle(0xffffff, 0.3); g.fillEllipse(0, -s * 0.25, s * 0.9, s * 0.15);
+            // Gold scales
+            g.fillStyle(0xffd700, 0.4); for (let i = 0; i < 6; i++) g.fillCircle(-s * 0.35 + i * s * 0.14, 0, s * 0.09);
+            // Crown spikes
             g.fillStyle(0xffd700); g.beginPath(); g.moveTo(s * 0.3, -s * 0.35);
-            g.lineTo(s * 0.35, -s * 0.55); g.lineTo(s * 0.45, -s * 0.4); g.lineTo(s * 0.5, -s * 0.6);
+            g.lineTo(s * 0.35, -s * 0.6); g.lineTo(s * 0.45, -s * 0.4); g.lineTo(s * 0.5, -s * 0.65);
             g.lineTo(s * 0.6, -s * 0.35); g.closePath(); g.fill();
+            // Crown highlight
+            g.fillStyle(0xffe082, 0.6); g.beginPath(); g.moveTo(s * 0.35, -s * 0.4);
+            g.lineTo(s * 0.38, -s * 0.52); g.lineTo(s * 0.42, -s * 0.4); g.closePath(); g.fill();
         } else if (fishType === 'special') {
-            g.fillStyle(config.bodyColor); g.fillEllipse(0, 0, s * 0.8, s * 0.5);
-            g.fillStyle(0xffe082, 0.6); g.fillEllipse(0, -s * 0.08, s * 0.6, s * 0.3);
+            // Special fish - golden with sparkle effect
+            g.fillStyle(glowColor, 0.25); g.fillEllipse(0, 0, s * 0.95, s * 0.6); // Outer glow
+            g.fillStyle(config.bodyColor); g.fillEllipse(0, 0, s * 0.85, s * 0.55);
+            g.fillStyle(0xffe082, 0.7); g.fillEllipse(0, -s * 0.08, s * 0.65, s * 0.35);
+            // Rim highlight
+            g.fillStyle(0xffffff, 0.4); g.fillEllipse(0, -s * 0.18, s * 0.45, s * 0.12);
+            // Sparkle spots
+            g.fillStyle(0xffffff, 0.6); g.fillCircle(s * 0.15, -s * 0.1, s * 0.04);
+            g.fillCircle(-s * 0.1, s * 0.05, s * 0.03);
         } else if (fishType === 'large') {
-            g.fillStyle(config.bodyColor); g.beginPath(); g.moveTo(s * 0.5, 0);
-            g.lineTo(s * 0.3, -s * 0.25); g.lineTo(-s * 0.2, -s * 0.2); g.lineTo(-s * 0.5, 0);
-            g.lineTo(-s * 0.2, s * 0.2); g.lineTo(s * 0.3, s * 0.2); g.closePath(); g.fill();
-            g.fillStyle(config.color, 0.7); g.beginPath(); g.moveTo(s * 0.4, -s * 0.05);
-            g.lineTo(s * 0.2, -s * 0.18); g.lineTo(-s * 0.3, -s * 0.12); g.lineTo(-s * 0.3, s * 0.05);
-            g.lineTo(s * 0.2, s * 0.05); g.closePath(); g.fill();
+            // Large fish - shark-like predator with sleek body
+            g.fillStyle(glowColor, 0.15); g.fillEllipse(0, 0, s * 0.6, s * 0.35); // Outer glow
+            g.fillStyle(config.bodyColor); g.beginPath(); g.moveTo(s * 0.55, 0);
+            g.lineTo(s * 0.35, -s * 0.28); g.lineTo(-s * 0.25, -s * 0.22); g.lineTo(-s * 0.55, 0);
+            g.lineTo(-s * 0.25, s * 0.22); g.lineTo(s * 0.35, s * 0.22); g.closePath(); g.fill();
+            // Body highlight
+            g.fillStyle(config.color, 0.7); g.beginPath(); g.moveTo(s * 0.45, -s * 0.05);
+            g.lineTo(s * 0.25, -s * 0.2); g.lineTo(-s * 0.35, -s * 0.14); g.lineTo(-s * 0.35, s * 0.05);
+            g.lineTo(s * 0.25, s * 0.05); g.closePath(); g.fill();
+            // Rim highlight
+            g.fillStyle(0xffffff, 0.25); g.fillEllipse(0, -s * 0.15, s * 0.35, s * 0.08);
         } else if (fishType === 'medium') {
-            g.fillStyle(config.bodyColor); g.fillEllipse(0, 0, s * 0.5, s * 0.3);
-            g.fillStyle(config.color, 0.8); g.fillEllipse(0, -s * 0.05, s * 0.4, s * 0.2);
-            g.fillStyle(0xffffff, 0.4); g.fillRect(-s * 0.1, -s * 0.15, s * 0.04, s * 0.3);
-            g.fillRect(s * 0.08, -s * 0.12, s * 0.04, s * 0.24);
+            // Medium fish - tropical with patterns
+            g.fillStyle(glowColor, 0.12); g.fillEllipse(0, 0, s * 0.58, s * 0.38); // Outer glow
+            g.fillStyle(config.bodyColor); g.fillEllipse(0, 0, s * 0.52, s * 0.32);
+            g.fillStyle(config.color, 0.8); g.fillEllipse(0, -s * 0.05, s * 0.42, s * 0.22);
+            // Stripe patterns
+            g.fillStyle(0xffffff, 0.35); g.fillRect(-s * 0.12, -s * 0.16, s * 0.05, s * 0.32);
+            g.fillRect(s * 0.06, -s * 0.14, s * 0.05, s * 0.28);
+            // Rim highlight
+            g.fillStyle(0xffffff, 0.3); g.fillEllipse(0, -s * 0.12, s * 0.28, s * 0.08);
         } else {
-            g.fillStyle(config.bodyColor); g.fillEllipse(0, 0, s * 0.45, s * 0.3);
-            g.fillStyle(config.color, 0.7); g.fillEllipse(0, -s * 0.05, s * 0.35, s * 0.18);
-            g.fillStyle(0xffffff, 0.4); g.fillEllipse(0, s * 0.08, s * 0.25, s * 0.1);
+            // Small fish - cute rounded shape
+            g.fillStyle(glowColor, 0.1); g.fillEllipse(0, 0, s * 0.52, s * 0.36); // Outer glow
+            g.fillStyle(config.bodyColor); g.fillEllipse(0, 0, s * 0.48, s * 0.32);
+            g.fillStyle(config.color, 0.75); g.fillEllipse(0, -s * 0.05, s * 0.38, s * 0.2);
+            // Belly highlight
+            g.fillStyle(0xffffff, 0.35); g.fillEllipse(0, s * 0.08, s * 0.28, s * 0.1);
+            // Rim highlight
+            g.fillStyle(0xffffff, 0.25); g.fillEllipse(0, -s * 0.1, s * 0.22, s * 0.06);
         }
     }
     
@@ -504,16 +550,54 @@ class GameScene extends Phaser.Scene {
         }
     }
     
+    // Collision validation callback - checks hit cooldown and velocity
+    validateCollision(bullet, fish) {
+        if (!bullet.active || !fish.active) return false;
+        const now = this.time.now;
+        // Check hit cooldown (100ms) to prevent double-hit registration
+        if (fish.hitCooldown && fish.hitCooldown > now) return false;
+        // Check bullet velocity (min 50px/s) before registering hit
+        const velocity = Math.abs(bullet.velocityX || 0) + Math.abs(bullet.velocityY || 0);
+        if (velocity < 50) return false;
+        // Manual distance check for precise collision validation
+        const dx = bullet.x - fish.x;
+        const dy = bullet.y - fish.y;
+        const fishConfig = PROBABILITY_TABLE.fishTypes[fish.fishType];
+        const hitRadius = fishConfig.hitRadius || fishConfig.size * 0.7;
+        if (dx * dx + dy * dy > hitRadius * hitRadius) return false;
+        return true;
+    }
+    
+    // Physics overlap callback - handles the actual hit
+    onBulletHitFish(bullet, fish) {
+        if (!bullet.active || !fish.active) return;
+        // Set hit cooldown
+        fish.hitCooldown = this.time.now + 100;
+        // Add screen shake for feedback (small shake)
+        this.cameras.main.shake(60, 0.005);
+        // Handle capture logic
+        this.handleCapture(bullet, fish);
+    }
+    
     checkCollisions() {
+        // Physics overlap handles collisions now, but keep manual check as fallback
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const bullet = this.bullets[i];
+            if (!bullet.active) continue;
             for (let j = this.fish.length - 1; j >= 0; j--) {
                 const fish = this.fish[j];
+                if (!fish.active) continue;
+                if (fish.hitCooldown && fish.hitCooldown > this.time.now) continue;
                 const distance = Phaser.Math.Distance.Between(bullet.x, bullet.y, fish.x, fish.y);
                 const fishConfig = PROBABILITY_TABLE.fishTypes[fish.fishType];
-                const collisionRadius = fishConfig.size * 0.8;
-                const bulletRadius = 10 + (bullet.bulletLevel || 1) * 2;
-                if (distance < collisionRadius + bulletRadius) { this.handleCapture(bullet, fish); return; }
+                const hitRadius = fishConfig.hitRadius || fishConfig.size * 0.7;
+                const bulletRadius = 12 + (bullet.bulletLevel || 1) * 3;
+                if (distance < hitRadius + bulletRadius) {
+                    fish.hitCooldown = this.time.now + 100;
+                    this.cameras.main.shake(60, 0.005);
+                    this.handleCapture(bullet, fish);
+                    return;
+                }
             }
         }
     }
@@ -741,6 +825,13 @@ const config = {
     height: 600,
     parent: 'game-canvas',
     backgroundColor: '#001428',
+    physics: {
+        default: 'arcade',
+        arcade: {
+            debug: false,
+            gravity: { y: 0 }
+        }
+    },
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     scene: GameScene
 };
