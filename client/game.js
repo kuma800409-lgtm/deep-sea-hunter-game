@@ -14,7 +14,16 @@ const GameState = {
     bullets: {},
     bulletLevel: 1,
     autoMode: false,
-    autoModeEndTime: 0
+    autoModeEndTime: 0,
+    viewRotation: 0  // Rotation in degrees based on seat position
+};
+
+// Seat to rotation mapping - each player sees themselves at bottom
+const ROTATION_MAP = {
+    'bottom': 0,      // No rotation needed
+    'left': 90,       // 90° clockwise
+    'top': 180,       // 180°
+    'right': 270      // 270° clockwise (or -90°)
 };
 
 // Phaser configuration
@@ -378,6 +387,10 @@ function initSocket() {
         GameState.seat = data.seat;
         GameState.players = data.players;
         
+        // Set view rotation based on seat position
+        GameState.viewRotation = ROTATION_MAP[data.seat] || 0;
+        console.log('Seat:', data.seat, 'View rotation:', GameState.viewRotation);
+        
         // Check if host
         for (const [id, player] of Object.entries(data.players)) {
             if (player.isHost && id === GameState.playerId) {
@@ -426,6 +439,9 @@ function initSocket() {
         document.getElementById('lobby-overlay').classList.add('hidden');
         document.getElementById('hud').classList.remove('hidden');
         document.getElementById('controls').classList.remove('hidden');
+        
+        // Apply camera rotation based on player's seat
+        applyViewRotation();
         
         // Create cannons for all players
         createAllCannons();
@@ -528,6 +544,36 @@ function updateConnectionStatus(connected) {
         status.textContent = 'DISCONNECTED';
         status.className = 'disconnected';
     }
+}
+
+// ============== VIEW ROTATION ==============
+
+function applyViewRotation() {
+    if (!scene || !scene.cameras || !scene.cameras.main) return;
+    
+    // Apply camera rotation based on player's seat
+    const rotationRad = Phaser.Math.DegToRad(GameState.viewRotation);
+    scene.cameras.main.setRotation(rotationRad);
+    
+    console.log('Applied view rotation:', GameState.viewRotation, 'degrees');
+}
+
+// Transform screen coordinates to world coordinates (accounting for camera rotation)
+function screenToWorld(screenX, screenY) {
+    if (!scene || !scene.cameras || !scene.cameras.main) {
+        return { x: screenX, y: screenY };
+    }
+    
+    const camera = scene.cameras.main;
+    const worldPoint = camera.getWorldPoint(screenX, screenY);
+    return { x: worldPoint.x, y: worldPoint.y };
+}
+
+// Get the rotated cannon position for the current player (always appears at bottom of their view)
+function getRotatedCannonPosition(seat) {
+    // In world coordinates, cannons are at fixed positions
+    // But visually, each player sees their cannon at the bottom
+    return CANNON_POSITIONS[seat];
 }
 
 // ============== LOBBY UI ==============
@@ -1353,9 +1399,12 @@ function handleClick(pointer) {
     if (!GameState.gameStarted) return;
     if (GameState.autoMode) return; // Can't manually shoot in auto mode
     
+    // Transform screen coordinates to world coordinates (accounting for camera rotation)
+    const worldPoint = screenToWorld(pointer.x, pointer.y);
+    
     GameState.socket.emit('shoot', {
-        targetX: pointer.x,
-        targetY: pointer.y,
+        targetX: worldPoint.x,
+        targetY: worldPoint.y,
         bulletLevel: GameState.bulletLevel
     });
 }
@@ -1363,11 +1412,13 @@ function handleClick(pointer) {
 function handlePointerMove(pointer) {
     if (!GameState.gameStarted) return;
     
-    // Rotate player's cannon to face pointer
+    // Rotate player's cannon to face pointer (in world coordinates)
     const cannon = scene.cannons ? scene.cannons[GameState.playerId] : null;
     if (cannon) {
         const pos = CANNON_POSITIONS[GameState.seat];
-        const angle = Math.atan2(pointer.y - pos.y, pointer.x - pos.x);
+        // Transform pointer to world coordinates
+        const worldPoint = screenToWorld(pointer.x, pointer.y);
+        const angle = Math.atan2(worldPoint.y - pos.y, worldPoint.x - pos.x);
         cannon.setAngle(Phaser.Math.RadToDeg(angle) + 90);
     }
 }
