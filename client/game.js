@@ -124,103 +124,110 @@ function update(time, delta) {
     }
 }
 
-// ============== BACKGROUND ==============
+// ============== BACKGROUND (TOP-DOWN WATER VIEW) ==============
 
 let backgroundLayers = [];
 
 function createBackground() {
-    // Layer 1: Deep gradient (farthest)
+    // Layer 1: Deep ocean gradient (top-down view - darker blue)
     const gradient1 = scene.add.graphics();
-    gradient1.fillGradientStyle(0x001a33, 0x001a33, 0x000d1a, 0x000d1a, 1);
+    gradient1.fillGradientStyle(0x001a33, 0x002244, 0x001a33, 0x002244, 1);
     gradient1.fillRect(0, 0, 800, 600);
     gradient1.setDepth(-100);
     
-    // Layer 2: Distant coral silhouettes
-    const silhouettes = scene.add.graphics();
-    silhouettes.fillStyle(0x002244, 0.5);
-    for (let i = 0; i < 8; i++) {
-        const x = i * 120 - 50;
-        const h = 50 + Math.random() * 80;
-        silhouettes.fillTriangle(x, 600, x + 40, 600 - h, x + 80, 600);
+    // Layer 2: Water surface patterns (top-down ripples)
+    createWaterSurface();
+    
+    // Layer 3: Underwater shadows/depth patches
+    const depthPatches = scene.add.graphics();
+    depthPatches.setDepth(-90);
+    depthPatches.fillStyle(0x000d1a, 0.3);
+    // Random dark patches suggesting depth
+    for (let i = 0; i < 6; i++) {
+        const x = 100 + Math.random() * 600;
+        const y = 100 + Math.random() * 400;
+        depthPatches.fillEllipse(x, y, 80 + Math.random() * 60, 50 + Math.random() * 40);
     }
-    silhouettes.setDepth(-90);
-    silhouettes.scrollFactorX = 0.1;
-    backgroundLayers.push({ graphics: silhouettes, speed: 0.1 });
+    backgroundLayers.push({ graphics: depthPatches, speed: 0.1 });
     
-    // Layer 3: Mid rocks and sunken ship
-    const midLayer = scene.add.graphics();
-    midLayer.fillStyle(0x003355, 0.6);
-    // Rocks
-    midLayer.fillEllipse(100, 550, 120, 60);
-    midLayer.fillEllipse(650, 530, 100, 50);
-    // Sunken ship silhouette
-    midLayer.fillStyle(0x002244, 0.7);
-    midLayer.beginPath();
-    midLayer.moveTo(300, 580);
-    midLayer.lineTo(320, 520);
-    midLayer.lineTo(380, 500);
-    midLayer.lineTo(420, 510);
-    midLayer.lineTo(450, 580);
-    midLayer.closePath();
-    midLayer.fill();
-    midLayer.setDepth(-80);
-    midLayer.scrollFactorX = 0.3;
-    backgroundLayers.push({ graphics: midLayer, speed: 0.3 });
-    
-    // Layer 4: Coral reef at bottom
-    createCoralReef();
-    
-    // Layer 5: Caustic light overlay
+    // Layer 4: Caustic light overlay (top-down light patterns)
     createCausticLight();
     
-    // Layer 6: Foreground bubbles
+    // Layer 5: Floating debris/particles
     createBubbles();
     
-    // Light rays from above
-    createLightRays();
+    // Layer 6: Water ripple animations
+    createWaterRipples();
 }
 
-function createCoralReef() {
-    const coral = scene.add.graphics();
-    coral.setDepth(-70);
+function createWaterSurface() {
+    // Top-down water surface with subtle wave patterns
+    scene.waterSurface = scene.add.graphics();
+    scene.waterSurface.setDepth(-95);
+    scene.waterSurface.setBlendMode(Phaser.BlendModes.ADD);
+    scene.waterTime = 0;
+}
+
+function createWaterRipples() {
+    // Animated ripple circles that expand and fade
+    scene.ripples = [];
+    scene.rippleTimer = 0;
+}
+
+function spawnRipple(x, y, color = 0x00ffff, maxRadius = 40) {
+    const ripple = scene.add.graphics();
+    ripple.setDepth(-80);
+    ripple.x = x;
+    ripple.y = y;
+    ripple.radius = 5;
+    ripple.maxRadius = maxRadius;
+    ripple.alpha = 0.5;
+    ripple.color = color;
+    scene.ripples.push(ripple);
+}
+
+function updateWaterSurface() {
+    if (!scene.waterSurface) return;
     
-    // Draw various coral types
-    const coralColors = [0xff6b9d, 0xff9f43, 0xa55eea, 0x00d2d3, 0xfeca57];
+    scene.waterTime += 0.02;
+    scene.waterSurface.clear();
     
-    for (let i = 0; i < 12; i++) {
-        const x = 30 + i * 70;
-        const color = coralColors[i % coralColors.length];
-        const type = i % 3;
+    // Draw animated wave patterns (top-down view)
+    for (let i = 0; i < 15; i++) {
+        const x = (i * 60 + scene.waterTime * 20) % 900 - 50;
+        const y = 300 + Math.sin(scene.waterTime + i * 0.5) * 100;
+        const alpha = 0.03 + Math.sin(scene.waterTime * 1.5 + i) * 0.02;
         
-        coral.fillStyle(color, 0.8);
-        
-        if (type === 0) {
-            // Branching coral
-            for (let j = 0; j < 5; j++) {
-                const bx = x + (j - 2) * 8;
-                const h = 30 + Math.random() * 40;
-                coral.fillRect(bx, 600 - h, 4, h);
-                coral.fillCircle(bx + 2, 600 - h, 6);
-            }
-        } else if (type === 1) {
-            // Fan coral
-            coral.beginPath();
-            coral.moveTo(x, 600);
-            coral.lineTo(x - 25, 560);
-            coral.lineTo(x, 540);
-            coral.lineTo(x + 25, 560);
-            coral.closePath();
-            coral.fill();
-        } else {
-            // Tube coral
-            for (let j = 0; j < 3; j++) {
-                const tx = x + (j - 1) * 12;
-                coral.fillRoundedRect(tx - 5, 560, 10, 40, 5);
-            }
-        }
+        scene.waterSurface.fillStyle(0x00aaff, alpha);
+        scene.waterSurface.fillEllipse(x, y, 100, 40);
+    }
+}
+
+function updateRipples(delta) {
+    if (!scene.ripples) return;
+    
+    // Spawn random ambient ripples
+    scene.rippleTimer += delta;
+    if (scene.rippleTimer > 2000) {
+        scene.rippleTimer = 0;
+        spawnRipple(100 + Math.random() * 600, 100 + Math.random() * 400, 0x00ffff, 30);
     }
     
-    backgroundLayers.push({ graphics: coral, speed: 0.6 });
+    // Update existing ripples
+    for (let i = scene.ripples.length - 1; i >= 0; i--) {
+        const ripple = scene.ripples[i];
+        ripple.radius += delta * 0.05;
+        ripple.alpha -= delta * 0.001;
+        
+        ripple.clear();
+        ripple.lineStyle(2, ripple.color, ripple.alpha);
+        ripple.strokeCircle(0, 0, ripple.radius);
+        
+        if (ripple.radius > ripple.maxRadius || ripple.alpha <= 0) {
+            ripple.destroy();
+            scene.ripples.splice(i, 1);
+        }
+    }
 }
 
 function createCausticLight() {
@@ -265,27 +272,26 @@ function createBubbles() {
 }
 
 function createLightRays() {
-    const rays = scene.add.graphics();
-    rays.setDepth(-85);
-    rays.setBlendMode(Phaser.BlendModes.ADD);
+    // Top-down view: light spots on water surface instead of rays
+    const lightSpots = scene.add.graphics();
+    lightSpots.setDepth(-85);
+    lightSpots.setBlendMode(Phaser.BlendModes.ADD);
     
-    for (let i = 0; i < 5; i++) {
-        const x = 100 + i * 180;
-        rays.fillStyle(0x00ffff, 0.03);
-        rays.beginPath();
-        rays.moveTo(x - 30, 0);
-        rays.lineTo(x + 30, 0);
-        rays.lineTo(x + 80, 600);
-        rays.lineTo(x - 80, 600);
-        rays.closePath();
-        rays.fill();
+    // Draw scattered light spots (sun reflection on water)
+    for (let i = 0; i < 8; i++) {
+        const x = 50 + i * 100;
+        const y = 50 + (i % 3) * 200;
+        lightSpots.fillStyle(0xffffff, 0.05);
+        lightSpots.fillEllipse(x, y, 60, 40);
+        lightSpots.fillStyle(0x00ffff, 0.03);
+        lightSpots.fillEllipse(x + 20, y + 30, 80, 50);
     }
     
-    // Animate rays
+    // Animate light spots
     scene.tweens.add({
-        targets: rays,
-        alpha: { from: 0.5, to: 1 },
-        duration: 3000,
+        targets: lightSpots,
+        alpha: { from: 0.4, to: 0.8 },
+        duration: 2500,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut'
@@ -293,19 +299,27 @@ function createLightRays() {
 }
 
 function updateParallax(delta) {
-    // Update bubbles
+    // Update floating particles (bubbles from below in top-down view)
     if (scene.bubbles) {
         scene.bubbles.forEach(bubble => {
-            bubble.y -= bubble.speedY * delta / 1000;
-            bubble.x += Math.sin(bubble.wobble) * 0.5;
-            bubble.wobble += 0.05;
+            // In top-down view, particles drift slowly in random directions
+            bubble.x += Math.sin(bubble.wobble) * 0.3;
+            bubble.y += Math.cos(bubble.wobble * 0.7) * 0.2;
+            bubble.wobble += 0.03;
             
-            if (bubble.y < -10) {
-                bubble.y = 610;
-                bubble.x = Math.random() * 800;
-            }
+            // Wrap around screen
+            if (bubble.x < -10) bubble.x = 810;
+            if (bubble.x > 810) bubble.x = -10;
+            if (bubble.y < -10) bubble.y = 610;
+            if (bubble.y > 610) bubble.y = -10;
         });
     }
+    
+    // Update water surface patterns
+    updateWaterSurface();
+    
+    // Update water ripples
+    updateRipples(delta);
     
     // Update caustics
     updateCaustics();
@@ -753,32 +767,45 @@ function spawnFish(data) {
     const colors = FISH_COLORS[fishType];
     const fishSize = FISH_SIZES[fishType];
     
-    // Glow effect
+    // Shadow (top-down view - fish shadow below)
+    const shadow = scene.add.graphics();
+    shadow.fillStyle(0x000000, 0.2);
+    shadow.fillEllipse(8, 8, fishSize * 0.5, fishSize * 0.35);
+    fish.add(shadow);
+    fish.shadow = shadow;
+    
+    // Glow effect (top-down aura)
     const glow = scene.add.graphics();
-    glow.fillStyle(colors.glow, 0.2);
-    glow.fillEllipse(0, 0, fishSize * 1.3, fishSize * 0.8);
+    glow.fillStyle(colors.glow, 0.15);
+    glow.fillEllipse(0, 0, fishSize * 0.7, fishSize * 0.5);
     fish.add(glow);
     fish.glow = glow;
     
-    // Body
+    // Body (top-down view)
     const body = scene.add.graphics();
-    drawFishBody(body, fishType, colors, fishSize);
+    drawFishBodyTopDown(body, fishType, colors, fishSize);
     fish.add(body);
     fish.body = body;
     
-    // Tail
+    // Fins (top-down view - side fins)
+    const fins = scene.add.graphics();
+    drawFishFinsTopDown(fins, fishType, colors, fishSize);
+    fish.add(fins);
+    fish.fins = fins;
+    
+    // Tail (top-down view)
     const tail = scene.add.graphics();
-    drawFishTail(tail, fishType, colors, fishSize);
+    drawFishTailTopDown(tail, fishType, colors, fishSize);
     fish.add(tail);
     fish.tail = tail;
     
-    // Eye
-    const eye = scene.add.graphics();
-    drawFishEye(eye, fishType, fishSize);
-    fish.add(eye);
+    // Eyes (top-down view - two dots near head)
+    const eyes = scene.add.graphics();
+    drawFishEyesTopDown(eyes, fishType, fishSize);
+    fish.add(eyes);
     
     // Multiplier text
-    const multText = scene.add.text(0, -fishSize * 0.6, `${multiplier}x`, {
+    const multText = scene.add.text(0, -fishSize * 0.45, `${multiplier}x`, {
         fontSize: fishType === 'boss' ? '16px' : '12px',
         fontFamily: 'Orbitron',
         color: getMultiplierColor(multiplier),
@@ -788,8 +815,9 @@ function spawnFish(data) {
     multText.setOrigin(0.5);
     fish.add(multText);
     
-    // Set direction
-    fish.setScale(direction, 1);
+    // Calculate rotation based on movement direction
+    const moveAngle = Math.atan2(target.y - position.y, target.x - position.x);
+    fish.setRotation(moveAngle);
     fish.setDepth(50);
     
     // Store fish
@@ -806,7 +834,7 @@ function spawnFish(data) {
     });
     
     // Animations
-    startFishAnimations(fish, fishType);
+    startFishAnimationsTopDown(fish, fishType);
     
     // Boss entrance effect
     if (fishType === 'boss') {
@@ -814,84 +842,124 @@ function spawnFish(data) {
     }
 }
 
-function drawFishBody(g, type, colors, size) {
+// TOP-DOWN FISH RENDERING FUNCTIONS
+
+function drawFishBodyTopDown(g, type, colors, size) {
     g.clear();
     
-    // Outer glow
-    g.fillStyle(colors.glow, 0.15);
-    g.fillEllipse(0, 0, size * 0.55, size * 0.4);
-    
     if (type === 'boss') {
+        // Boss: Large torpedo shape with dorsal ridge
         g.fillStyle(colors.body);
-        g.fillEllipse(0, 0, size * 0.7, size * 0.4);
-        g.fillStyle(colors.glow, 0.5);
-        g.fillEllipse(0, -size * 0.05, size * 0.6, size * 0.3);
-        // Crown
+        g.fillEllipse(0, 0, size * 0.5, size * 0.25);
+        // Dorsal highlight
+        g.fillStyle(colors.glow, 0.6);
+        g.fillEllipse(0, 0, size * 0.4, size * 0.12);
+        // Crown/ridge on back
         g.fillStyle(0xffd700);
-        g.beginPath();
-        g.moveTo(size * 0.15, -size * 0.18);
-        g.lineTo(size * 0.18, -size * 0.3);
-        g.lineTo(size * 0.25, -size * 0.2);
-        g.lineTo(size * 0.28, -size * 0.32);
-        g.lineTo(size * 0.35, -size * 0.18);
-        g.closePath();
-        g.fill();
+        for (let i = 0; i < 5; i++) {
+            const x = size * 0.15 - i * size * 0.08;
+            g.fillCircle(x, 0, size * 0.03);
+        }
     } else if (type === 'special') {
+        // Special: Round golden fish with sparkle ring
         g.fillStyle(colors.body);
-        g.fillEllipse(0, 0, size * 0.45, size * 0.3);
-        g.fillStyle(0xffe082, 0.6);
-        g.fillEllipse(0, -size * 0.04, size * 0.35, size * 0.2);
+        g.fillEllipse(0, 0, size * 0.35, size * 0.28);
+        // Inner glow
+        g.fillStyle(0xffe082, 0.7);
+        g.fillEllipse(0, 0, size * 0.25, size * 0.18);
+        // Sparkle ring
+        g.lineStyle(2, 0xffffff, 0.5);
+        g.strokeCircle(0, 0, size * 0.4);
     } else if (type === 'large') {
+        // Large: Shark-like torpedo shape
         g.fillStyle(colors.body);
         g.beginPath();
-        g.moveTo(size * 0.3, 0);
-        g.lineTo(size * 0.2, -size * 0.15);
-        g.lineTo(-size * 0.15, -size * 0.12);
-        g.lineTo(-size * 0.3, 0);
-        g.lineTo(-size * 0.15, size * 0.12);
-        g.lineTo(size * 0.2, size * 0.12);
+        g.moveTo(size * 0.35, 0);
+        g.lineTo(size * 0.15, -size * 0.12);
+        g.lineTo(-size * 0.25, -size * 0.08);
+        g.lineTo(-size * 0.35, 0);
+        g.lineTo(-size * 0.25, size * 0.08);
+        g.lineTo(size * 0.15, size * 0.12);
         g.closePath();
         g.fill();
+        // Dorsal stripe
+        g.fillStyle(colors.glow, 0.5);
+        g.fillEllipse(0, 0, size * 0.25, size * 0.05);
     } else if (type === 'medium') {
+        // Medium: Oval tropical fish
         g.fillStyle(colors.body);
         g.fillEllipse(0, 0, size * 0.3, size * 0.18);
-        g.fillStyle(colors.glow, 0.5);
-        g.fillEllipse(0, -size * 0.03, size * 0.24, size * 0.12);
+        // Stripe pattern
+        g.fillStyle(colors.glow, 0.4);
+        g.fillRect(-size * 0.05, -size * 0.15, size * 0.03, size * 0.3);
+        g.fillRect(size * 0.08, -size * 0.12, size * 0.03, size * 0.24);
     } else {
+        // Small: Simple round fish
         g.fillStyle(colors.body);
-        g.fillEllipse(0, 0, size * 0.28, size * 0.18);
+        g.fillEllipse(0, 0, size * 0.25, size * 0.18);
+        // Highlight
         g.fillStyle(colors.glow, 0.5);
-        g.fillEllipse(0, -size * 0.03, size * 0.2, size * 0.1);
+        g.fillEllipse(size * 0.03, -size * 0.02, size * 0.12, size * 0.08);
     }
 }
 
-function drawFishTail(g, type, colors, size) {
+function drawFishFinsTopDown(g, type, colors, size) {
     g.clear();
-    g.fillStyle(colors.glow, 0.8);
+    g.fillStyle(colors.glow, 0.7);
     
-    const tailSize = type === 'boss' ? 0.35 : type === 'large' ? 0.25 : 0.15;
+    const finSize = type === 'boss' ? 0.15 : type === 'large' ? 0.12 : 0.08;
     
+    // Left fin (top in top-down view)
     g.beginPath();
-    g.moveTo(-size * 0.25, 0);
-    g.lineTo(-size * (0.25 + tailSize), -size * tailSize * 0.8);
-    g.lineTo(-size * (0.2 + tailSize * 0.5), 0);
-    g.lineTo(-size * (0.25 + tailSize), size * tailSize * 0.8);
+    g.moveTo(0, -size * 0.1);
+    g.lineTo(-size * 0.1, -size * (0.1 + finSize));
+    g.lineTo(size * 0.05, -size * 0.12);
+    g.closePath();
+    g.fill();
+    
+    // Right fin (bottom in top-down view)
+    g.beginPath();
+    g.moveTo(0, size * 0.1);
+    g.lineTo(-size * 0.1, size * (0.1 + finSize));
+    g.lineTo(size * 0.05, size * 0.12);
     g.closePath();
     g.fill();
 }
 
-function drawFishEye(g, type, size) {
+function drawFishTailTopDown(g, type, colors, size) {
     g.clear();
-    const eyeX = size * 0.12;
-    const eyeY = -size * 0.02;
-    const eyeSize = type === 'boss' ? size * 0.06 : size * 0.04;
+    g.fillStyle(colors.glow, 0.8);
     
-    g.fillStyle(0xffffff);
-    g.fillCircle(eyeX, eyeY, eyeSize);
+    const tailSize = type === 'boss' ? 0.2 : type === 'large' ? 0.15 : 0.1;
+    
+    // V-shaped tail fan
+    g.beginPath();
+    g.moveTo(-size * 0.25, 0);
+    g.lineTo(-size * (0.25 + tailSize), -size * tailSize);
+    g.lineTo(-size * (0.2 + tailSize * 0.3), 0);
+    g.lineTo(-size * (0.25 + tailSize), size * tailSize);
+    g.closePath();
+    g.fill();
+}
+
+function drawFishEyesTopDown(g, type, size) {
+    g.clear();
+    const eyeX = size * 0.15;
+    const eyeOffsetY = size * 0.06;
+    const eyeSize = type === 'boss' ? size * 0.035 : size * 0.025;
+    
+    // Two eyes symmetrically placed (top-down view)
+    // Left eye
     g.fillStyle(0x000000);
-    g.fillCircle(eyeX + eyeSize * 0.2, eyeY, eyeSize * 0.6);
-    g.fillStyle(0xffffff);
-    g.fillCircle(eyeX + eyeSize * 0.3, eyeY - eyeSize * 0.2, eyeSize * 0.2);
+    g.fillCircle(eyeX, -eyeOffsetY, eyeSize);
+    g.fillStyle(0xffffff, 0.5);
+    g.fillCircle(eyeX + eyeSize * 0.3, -eyeOffsetY - eyeSize * 0.2, eyeSize * 0.3);
+    
+    // Right eye
+    g.fillStyle(0x000000);
+    g.fillCircle(eyeX, eyeOffsetY, eyeSize);
+    g.fillStyle(0xffffff, 0.5);
+    g.fillCircle(eyeX + eyeSize * 0.3, eyeOffsetY - eyeSize * 0.2, eyeSize * 0.3);
 }
 
 function getMultiplierColor(mult) {
@@ -901,39 +969,64 @@ function getMultiplierColor(mult) {
     return '#00ffff';
 }
 
-function startFishAnimations(fish, type) {
-    // Body wiggle
-    scene.tweens.add({
-        targets: fish.body,
-        x: { from: -2, to: 2 },
-        duration: type === 'boss' ? 800 : 400,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-    });
-    
-    // Tail sway
+function startFishAnimationsTopDown(fish, type) {
+    // Tail wiggle (top-down swimming motion)
     scene.tweens.add({
         targets: fish.tail,
-        angle: { from: -15, to: 15 },
-        duration: type === 'boss' ? 600 : 300,
+        scaleX: { from: 0.8, to: 1.2 },
+        duration: type === 'boss' ? 400 : 200,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut'
     });
     
-    // Glow pulse
-    if (fish.glow) {
+    // Fin flutter
+    if (fish.fins) {
         scene.tweens.add({
-            targets: fish.glow,
-            alpha: { from: 0.5, to: 1 },
-            scale: { from: 1, to: 1.1 },
-            duration: 800,
+            targets: fish.fins,
+            scaleY: { from: 0.9, to: 1.1 },
+            duration: type === 'boss' ? 500 : 250,
             yoyo: true,
             repeat: -1,
             ease: 'Sine.easeInOut'
         });
     }
+    
+    // Glow pulse
+    if (fish.glow) {
+        scene.tweens.add({
+            targets: fish.glow,
+            alpha: { from: 0.3, to: 0.6 },
+            scale: { from: 1, to: 1.15 },
+            duration: 1000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+    }
+    
+    // Shadow pulse (subtle depth effect)
+    if (fish.shadow) {
+        scene.tweens.add({
+            targets: fish.shadow,
+            alpha: { from: 0.15, to: 0.25 },
+            duration: 1200,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+    }
+    
+    // Breathing scale effect
+    scene.tweens.add({
+        targets: fish,
+        scaleX: { from: 0.98, to: 1.02 },
+        scaleY: { from: 0.98, to: 1.02 },
+        duration: type === 'boss' ? 1500 : 800,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+    });
 }
 
 function showBossEntrance(fish) {
@@ -987,50 +1080,129 @@ function handleFishCaptured(data) {
     }
 }
 
-function showCaptureEffect(x, y, reward) {
-    // Particle burst
-    for (let i = 0; i < 12; i++) {
-        const angle = (i / 12) * Math.PI * 2;
-        const particle = scene.add.circle(x, y, 4, 0xffd700);
+function showCaptureEffect(x, y, reward, playerId = null) {
+    // Water ripple at capture point
+    spawnRipple(x, y, 0xffd700, 50);
+    
+    // Particle burst (cyan/white particles)
+    for (let i = 0; i < 16; i++) {
+        const angle = (i / 16) * Math.PI * 2;
+        const color = i % 2 === 0 ? 0x00ffff : 0xffffff;
+        const particle = scene.add.circle(x, y, 4, color);
         particle.setDepth(150);
         
         scene.tweens.add({
             targets: particle,
-            x: x + Math.cos(angle) * 60,
-            y: y + Math.sin(angle) * 60,
+            x: x + Math.cos(angle) * 70,
+            y: y + Math.sin(angle) * 70,
             alpha: 0,
-            scale: 0,
-            duration: 400,
+            scale: 0.3,
+            duration: 500,
             onComplete: () => particle.destroy()
         });
     }
     
-    // Reward text
+    // Sparkles flying to player cannon
+    const targetPlayerId = playerId || GameState.playerId;
+    const cannonPos = getCannonPosition(targetPlayerId);
+    if (cannonPos) {
+        for (let i = 0; i < 6; i++) {
+            const sparkle = scene.add.circle(x, y, 3, 0xffd700);
+            sparkle.setDepth(155);
+            
+            // Staggered flight to cannon
+            scene.tweens.add({
+                targets: sparkle,
+                x: cannonPos.x + (Math.random() - 0.5) * 20,
+                y: cannonPos.y + (Math.random() - 0.5) * 20,
+                scale: { from: 1, to: 0.5 },
+                duration: 400 + i * 50,
+                delay: i * 30,
+                ease: 'Quad.easeIn',
+                onComplete: () => sparkle.destroy()
+            });
+        }
+    }
+    
+    // Reward text (score pop-up with animation)
+    const fontSize = reward >= 100 ? '28px' : reward >= 50 ? '24px' : '20px';
+    const textColor = reward >= 100 ? '#ffd700' : reward >= 50 ? '#ff8800' : '#00ffff';
+    
     const text = scene.add.text(x, y, `+${reward}`, {
-        fontSize: '20px',
+        fontSize: fontSize,
         fontFamily: 'Orbitron',
-        color: '#ffd700',
+        color: textColor,
         stroke: '#000',
-        strokeThickness: 3
+        strokeThickness: 4
     });
     text.setOrigin(0.5);
     text.setDepth(160);
     
+    // Scale up then fade out while rising
     scene.tweens.add({
         targets: text,
-        y: y - 50,
+        scale: { from: 0.5, to: 1.2 },
+        duration: 200,
+        ease: 'Back.easeOut'
+    });
+    
+    scene.tweens.add({
+        targets: text,
+        y: y - 60,
         alpha: 0,
-        duration: 1000,
+        duration: 1200,
+        delay: 200,
         onComplete: () => text.destroy()
     });
     
-    // Screen flash
-    const flash = scene.add.rectangle(400, 300, 800, 600, 0xffffff, 0.2);
-    flash.setDepth(140);
+    // Flash effect on fish (glow pulse)
+    const glow = scene.add.circle(x, y, 30, 0xffffff, 0.6);
+    glow.setDepth(145);
+    scene.tweens.add({
+        targets: glow,
+        scale: 2,
+        alpha: 0,
+        duration: 200,
+        onComplete: () => glow.destroy()
+    });
+}
+
+function getCannonPosition(playerId) {
+    if (!GameState.players[playerId]) return null;
+    const seat = GameState.players[playerId].seat;
+    return CANNON_POSITIONS[seat];
+}
+
+function showHitEffect(x, y) {
+    // Hit effect when bullet hits fish (even if not captured)
+    // Water ripple
+    spawnRipple(x, y, 0x00ffff, 35);
+    
+    // Small particle burst
+    for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const particle = scene.add.circle(x, y, 3, 0x00ffff);
+        particle.setDepth(145);
+        
+        scene.tweens.add({
+            targets: particle,
+            x: x + Math.cos(angle) * 30,
+            y: y + Math.sin(angle) * 30,
+            alpha: 0,
+            scale: 0,
+            duration: 250,
+            onComplete: () => particle.destroy()
+        });
+    }
+    
+    // Flash
+    const flash = scene.add.circle(x, y, 15, 0xffffff, 0.5);
+    flash.setDepth(144);
     scene.tweens.add({
         targets: flash,
+        scale: 2,
         alpha: 0,
-        duration: 100,
+        duration: 150,
         onComplete: () => flash.destroy()
     });
 }
@@ -1041,45 +1213,70 @@ function updateFishAnimations(delta) {
 
 // ============== BULLETS ==============
 
+// Bullet colors by level
+const BULLET_COLORS = {
+    1: { core: 0x00aaff, glow: 0x0088ff, trail: 0x00ccff },    // Light blue
+    2: { core: 0x00ff88, glow: 0x00cc66, trail: 0x00ffaa },    // Green
+    3: { core: 0xffff00, glow: 0xcccc00, trail: 0xffff66 },    // Yellow
+    5: { core: 0xff8800, glow: 0xcc6600, trail: 0xffaa33 },    // Orange
+    10: { core: 0xff00ff, glow: 0xcc00cc, trail: 0xff66ff }    // Red/Purple
+};
+
+function getBulletColors(level) {
+    if (level >= 10) return BULLET_COLORS[10];
+    if (level >= 5) return BULLET_COLORS[5];
+    if (level >= 3) return BULLET_COLORS[3];
+    if (level >= 2) return BULLET_COLORS[2];
+    return BULLET_COLORS[1];
+}
+
 function createBullet(data) {
     const { playerId, bulletId, fromPosition, targetX, targetY, bulletLevel } = data;
     
     const angle = Math.atan2(targetY - fromPosition.y, targetX - fromPosition.x);
     const speed = 600;
+    const colors = getBulletColors(bulletLevel);
     
     // Create bullet
     const bullet = scene.add.container(fromPosition.x, fromPosition.y);
     bullet.bulletId = bulletId;
+    bullet.bulletLevel = bulletLevel;
+    bullet.bulletColors = colors;
     bullet.velocityX = Math.cos(angle) * speed;
     bullet.velocityY = Math.sin(angle) * speed;
+    bullet.trailTimer = 0;
     
     // Bullet graphics based on level
     const g = scene.add.graphics();
     const size = 8 + bulletLevel * 2;
     
+    // Outer glow
+    g.fillStyle(colors.glow, 0.3);
+    g.fillCircle(0, 0, size * 1.5);
+    
+    // Core
+    g.fillStyle(colors.core);
     if (bulletLevel >= 10) {
-        // Golden rocket
-        g.fillStyle(0xffd700, 0.3);
-        g.fillCircle(0, 0, size * 2);
-        g.fillStyle(0xffc107);
+        // Rocket shape for level 10
         g.beginPath();
         g.moveTo(0, -size);
         g.lineTo(size * 0.5, size * 0.3);
         g.lineTo(-size * 0.5, size * 0.3);
         g.closePath();
         g.fill();
+        // Inner glow
+        g.fillStyle(0xffffff, 0.5);
+        g.fillCircle(0, -size * 0.3, size * 0.3);
     } else if (bulletLevel >= 5) {
-        // Cyan plasma
-        g.fillStyle(0x00ffff, 0.2);
-        g.fillCircle(0, 0, size * 1.5);
-        g.fillStyle(0x00e5ff);
-        g.fillEllipse(0, 0, size, size * 1.5);
+        // Plasma ball for level 5+
+        g.fillEllipse(0, 0, size, size * 1.3);
+        g.fillStyle(0xffffff, 0.4);
+        g.fillCircle(0, -size * 0.2, size * 0.4);
     } else {
-        // Blue energy bolt
-        g.fillStyle(0x0088ff, 0.3);
-        g.fillCircle(0, 0, size * 1.2);
-        g.fillStyle(0x00aaff);
+        // Energy bolt for lower levels
         g.fillEllipse(0, 0, size * 0.8, size * 1.2);
+        g.fillStyle(0xffffff, 0.3);
+        g.fillCircle(0, -size * 0.15, size * 0.3);
     }
     
     bullet.add(g);
@@ -1090,8 +1287,8 @@ function createBullet(data) {
     GameState.bullets[bulletId] = bullet;
     scene.bulletGroup.add(bullet);
     
-    // Muzzle flash at cannon
-    const flash = scene.add.circle(fromPosition.x, fromPosition.y, 15, 0x00e5ff, 0.8);
+    // Muzzle flash at cannon (color matches bullet)
+    const flash = scene.add.circle(fromPosition.x, fromPosition.y, 15, colors.core, 0.8);
     flash.setDepth(90);
     scene.tweens.add({
         targets: flash,
@@ -1099,6 +1296,25 @@ function createBullet(data) {
         scale: 2,
         duration: 100,
         onComplete: () => flash.destroy()
+    });
+    
+    // Water ripple at spawn point
+    spawnRipple(fromPosition.x, fromPosition.y, colors.trail, 25);
+}
+
+function spawnBulletTrail(bullet) {
+    const colors = bullet.bulletColors;
+    const size = 3 + bullet.bulletLevel * 0.5;
+    
+    const trail = scene.add.circle(bullet.x, bullet.y, size, colors.trail, 0.6);
+    trail.setDepth(75);
+    
+    scene.tweens.add({
+        targets: trail,
+        alpha: 0,
+        scale: 0.3,
+        duration: 200,
+        onComplete: () => trail.destroy()
     });
 }
 
@@ -1116,6 +1332,13 @@ function updateBullets(delta) {
     for (const [bulletId, bullet] of Object.entries(GameState.bullets)) {
         bullet.x += bullet.velocityX * dt;
         bullet.y += bullet.velocityY * dt;
+        
+        // Spawn trail particles
+        bullet.trailTimer += delta;
+        if (bullet.trailTimer > 30) { // Every 30ms
+            bullet.trailTimer = 0;
+            spawnBulletTrail(bullet);
+        }
         
         // Remove if out of bounds
         if (bullet.x < -50 || bullet.x > 850 || bullet.y < -50 || bullet.y > 650) {
