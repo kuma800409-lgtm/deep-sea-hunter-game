@@ -26,11 +26,31 @@ const ROTATION_MAP = {
     'right': 270      // 270° clockwise (or -90°)
 };
 
+// Seat order for relative position calculations (clockwise)
+const SEAT_ORDER = ['bottom', 'left', 'top', 'right'];
+
+// Get relative seat position from current player's perspective
+// Returns where playerSeat appears from the perspective of mySeat
+function getRelativeSeat(playerSeat, mySeat) {
+    if (!playerSeat || !mySeat) return playerSeat;
+    
+    const playerIndex = SEAT_ORDER.indexOf(playerSeat);
+    const myIndex = SEAT_ORDER.indexOf(mySeat);
+    
+    if (playerIndex === -1 || myIndex === -1) return playerSeat;
+    
+    // Calculate relative position (how many steps from my seat to player's seat)
+    const diff = (playerIndex - myIndex + SEAT_ORDER.length) % SEAT_ORDER.length;
+    
+    // Map diff to relative position: 0=bottom (me), 1=left, 2=top, 3=right
+    return SEAT_ORDER[diff];
+}
+
 // Phaser configuration
 const config = {
     type: Phaser.AUTO,
     width: 800,
-    height: 600,
+    height: 800,  // Square canvas for proper rotation
     parent: 'game-canvas',
     backgroundColor: '#001a33',
     physics: {
@@ -50,12 +70,12 @@ const config = {
 let game;
 let scene;
 
-// Cannon positions for each seat
+// Cannon positions for each seat (adjusted for 800x800 square canvas)
 const CANNON_POSITIONS = {
-    bottom: { x: 400, y: 570, angle: -90 },
+    bottom: { x: 400, y: 770, angle: -90 },
     top: { x: 400, y: 30, angle: 90 },
-    left: { x: 30, y: 300, angle: 0 },
-    right: { x: 770, y: 300, angle: 180 }
+    left: { x: 30, y: 400, angle: 0 },
+    right: { x: 770, y: 400, angle: 180 }
 };
 
 // Fish type colors
@@ -141,7 +161,7 @@ function createBackground() {
     // Layer 1: Deep ocean gradient (top-down view - darker blue)
     const gradient1 = scene.add.graphics();
     gradient1.fillGradientStyle(0x001a33, 0x002244, 0x001a33, 0x002244, 1);
-    gradient1.fillRect(0, 0, 800, 600);
+    gradient1.fillRect(0, 0, 800, 800);
     gradient1.setDepth(-100);
     
     // Layer 2: Water surface patterns (top-down ripples)
@@ -154,7 +174,7 @@ function createBackground() {
     // Random dark patches suggesting depth
     for (let i = 0; i < 6; i++) {
         const x = 100 + Math.random() * 600;
-        const y = 100 + Math.random() * 400;
+        const y = 100 + Math.random() * 600;
         depthPatches.fillEllipse(x, y, 80 + Math.random() * 60, 50 + Math.random() * 40);
     }
     backgroundLayers.push({ graphics: depthPatches, speed: 0.1 });
@@ -204,7 +224,7 @@ function updateWaterSurface() {
     // Draw animated wave patterns (top-down view)
     for (let i = 0; i < 15; i++) {
         const x = (i * 60 + scene.waterTime * 20) % 900 - 50;
-        const y = 300 + Math.sin(scene.waterTime + i * 0.5) * 100;
+        const y = 400 + Math.sin(scene.waterTime + i * 0.5) * 150;
         const alpha = 0.03 + Math.sin(scene.waterTime * 1.5 + i) * 0.02;
         
         scene.waterSurface.fillStyle(0x00aaff, alpha);
@@ -219,7 +239,7 @@ function updateRipples(delta) {
     scene.rippleTimer += delta;
     if (scene.rippleTimer > 2000) {
         scene.rippleTimer = 0;
-        spawnRipple(100 + Math.random() * 600, 100 + Math.random() * 400, 0x00ffff, 30);
+        spawnRipple(100 + Math.random() * 600, 100 + Math.random() * 600, 0x00ffff, 30);
     }
     
     // Update existing ripples
@@ -268,7 +288,7 @@ function createBubbles() {
     for (let i = 0; i < 30; i++) {
         const bubble = scene.add.circle(
             Math.random() * 800,
-            Math.random() * 600,
+            Math.random() * 800,
             2 + Math.random() * 4,
             0xffffff,
             0.3
@@ -758,8 +778,11 @@ function createAllHUDs() {
     hudContainer.innerHTML = '';
     
     for (const [playerId, player] of Object.entries(GameState.players)) {
+        // Get relative seat position from current player's perspective
+        const relativeSeat = getRelativeSeat(player.seat, GameState.seat);
+        
         const hud = document.createElement('div');
-        hud.className = `player-hud ${player.seat}`;
+        hud.className = `player-hud ${relativeSeat}`;
         hud.id = `hud-${playerId}`;
         hud.innerHTML = `
             <div class="player-name">${player.name}</div>
@@ -1080,7 +1103,7 @@ function showBossEntrance(fish) {
     scene.cameras.main.shake(300, 0.01);
     
     // Announcement
-    const text = scene.add.text(400, 300, 'BOSS APPEARED!', {
+    const text = scene.add.text(400, 400, 'BOSS APPEARED!', {
         fontSize: '32px',
         fontFamily: 'Orbitron',
         color: '#ff3da8',
@@ -1456,7 +1479,7 @@ function showBonusAnnouncement(bonusType, playerId) {
         fullScreenClear: 'FULL SCREEN CLEAR'
     };
     
-    const text = scene.add.text(400, 300, bonusNames[bonusType] || bonusType, {
+    const text = scene.add.text(400, 400, bonusNames[bonusType] || bonusType, {
         fontSize: '36px',
         fontFamily: 'Orbitron',
         color: '#ffd700',
@@ -1476,7 +1499,7 @@ function showBonusAnnouncement(bonusType, playerId) {
     
     // Screen effect based on bonus type
     if (bonusType === 'lockAndFreeze') {
-        const overlay = scene.add.rectangle(400, 300, 800, 600, 0x00ffff, 0.2);
+        const overlay = scene.add.rectangle(400, 400, 800, 800, 0x00ffff, 0.2);
         overlay.setDepth(190);
         scene.tweens.add({
             targets: overlay,
@@ -1537,7 +1560,7 @@ function drawLightningArc(g, x1, y1, x2, y2) {
 
 function showFullScreenClear(data) {
     // Radial shockwave
-    const shockwave = scene.add.circle(400, 300, 10, 0xffd700, 0.5);
+    const shockwave = scene.add.circle(400, 400, 10, 0xffd700, 0.5);
     shockwave.setDepth(180);
     
     scene.tweens.add({
@@ -1558,7 +1581,7 @@ function showFullScreenClear(data) {
     }
     
     // Screen flash
-    const flash = scene.add.rectangle(400, 300, 800, 600, 0xffd700, 0.4);
+    const flash = scene.add.rectangle(400, 400, 800, 800, 0xffd700, 0.4);
     flash.setDepth(170);
     scene.tweens.add({
         targets: flash,
