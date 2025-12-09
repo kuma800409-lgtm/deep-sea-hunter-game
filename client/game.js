@@ -218,14 +218,14 @@ function spawnRipple(x, y, color = 0x00ffff, maxRadius = 40) {
 function updateWaterSurface() {
     if (!scene.waterSurface) return;
     
-    scene.waterTime += 0.02;
+    scene.waterTime += 0.015;  // Slower animation for smoother rendering
     scene.waterSurface.clear();
     
-    // Draw animated wave patterns (top-down view)
-    for (let i = 0; i < 15; i++) {
-        const x = (i * 60 + scene.waterTime * 20) % 900 - 50;
+    // Draw animated wave patterns (top-down view) - reduced from 15 to 10 for performance
+    for (let i = 0; i < 10; i++) {
+        const x = (i * 90 + scene.waterTime * 15) % 900 - 50;
         const y = 400 + Math.sin(scene.waterTime + i * 0.5) * 150;
-        const alpha = 0.03 + Math.sin(scene.waterTime * 1.5 + i) * 0.02;
+        const alpha = 0.025 + Math.sin(scene.waterTime * 1.5 + i) * 0.015;
         
         scene.waterSurface.fillStyle(0x00aaff, alpha);
         scene.waterSurface.fillEllipse(x, y, 100, 40);
@@ -235,11 +235,11 @@ function updateWaterSurface() {
 function updateRipples(delta) {
     if (!scene.ripples) return;
     
-    // Spawn random ambient ripples
+    // Spawn random ambient ripples - increased interval from 2000ms to 4000ms for performance
     scene.rippleTimer += delta;
-    if (scene.rippleTimer > 2000) {
+    if (scene.rippleTimer > 4000) {
         scene.rippleTimer = 0;
-        spawnRipple(100 + Math.random() * 600, 100 + Math.random() * 600, 0x00ffff, 30);
+        spawnRipple(100 + Math.random() * 600, 100 + Math.random() * 600, 0x00ffff, 25);
     }
     
     // Update existing ripples
@@ -269,14 +269,14 @@ function createCausticLight() {
 function updateCaustics() {
     if (!scene.causticGraphics) return;
     
-    scene.causticTime += 0.02;
+    scene.causticTime += 0.015;  // Slower animation for smoother rendering
     scene.causticGraphics.clear();
     
-    // Draw animated caustic patterns
-    for (let i = 0; i < 20; i++) {
-        const x = (i * 50 + scene.causticTime * 30) % 900 - 50;
+    // Draw animated caustic patterns - reduced from 20 to 12 for performance
+    for (let i = 0; i < 12; i++) {
+        const x = (i * 70 + scene.causticTime * 25) % 900 - 50;
         const y = 400 + Math.sin(scene.causticTime + i) * 50;
-        const alpha = 0.05 + Math.sin(scene.causticTime * 2 + i) * 0.03;
+        const alpha = 0.04 + Math.sin(scene.causticTime * 2 + i) * 0.02;
         
         scene.causticGraphics.fillStyle(0x00ffff, alpha);
         scene.causticGraphics.fillEllipse(x, y, 60, 30);
@@ -284,17 +284,18 @@ function updateCaustics() {
 }
 
 function createBubbles() {
+    // Reduced bubble count from 30 to 15 for better performance
     scene.bubbles = [];
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 15; i++) {
         const bubble = scene.add.circle(
             Math.random() * 800,
             Math.random() * 800,
-            2 + Math.random() * 4,
+            2 + Math.random() * 3,
             0xffffff,
-            0.3
+            0.25
         );
         bubble.setDepth(-50);
-        bubble.speedY = 20 + Math.random() * 30;
+        bubble.speedY = 15 + Math.random() * 25;
         bubble.wobble = Math.random() * Math.PI * 2;
         scene.bubbles.push(bubble);
     }
@@ -1244,34 +1245,34 @@ function getCannonPosition(playerId) {
 
 function showHitEffect(x, y) {
     // Hit effect when bullet hits fish (even if not captured)
-    // Water ripple
-    spawnRipple(x, y, 0x00ffff, 35);
+    // Water ripple - reduced size for performance
+    spawnRipple(x, y, 0x00ffff, 25);
     
-    // Small particle burst
-    for (let i = 0; i < 8; i++) {
-        const angle = (i / 8) * Math.PI * 2;
+    // Small particle burst - reduced from 8 to 4 particles
+    for (let i = 0; i < 4; i++) {
+        const angle = (i / 4) * Math.PI * 2;
         const particle = scene.add.circle(x, y, 3, 0x00ffff);
         particle.setDepth(145);
         
         scene.tweens.add({
             targets: particle,
-            x: x + Math.cos(angle) * 30,
-            y: y + Math.sin(angle) * 30,
+            x: x + Math.cos(angle) * 25,
+            y: y + Math.sin(angle) * 25,
             alpha: 0,
             scale: 0,
-            duration: 250,
+            duration: 200,
             onComplete: () => particle.destroy()
         });
     }
     
-    // Flash
-    const flash = scene.add.circle(x, y, 15, 0xffffff, 0.5);
+    // Flash - reduced intensity
+    const flash = scene.add.circle(x, y, 10, 0xffffff, 0.3);
     flash.setDepth(144);
     scene.tweens.add({
         targets: flash,
-        scale: 2,
+        scale: 1.5,
         alpha: 0,
-        duration: 150,
+        duration: 100,
         onComplete: () => flash.destroy()
     });
 }
