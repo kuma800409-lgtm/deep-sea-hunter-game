@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 
-// Fish type configurations
+// Fish type configurations (categories) - core game mechanics
+// These determine capture probability, multiplier ranges, and RTP
 const FISH_TYPES = {
     small: {
         name: 'Small Fish',
@@ -50,6 +51,41 @@ const FISH_TYPES = {
     }
 };
 
+// Fish Species - visual variants within each category
+// Each species maps to a category for game mechanics
+const FISH_SPECIES = [
+    // Small Fish (Fast, Low Value)
+    { id: 'shrimp', category: 'small', spawnWeight: 25 },
+    { id: 'clownfish', category: 'small', spawnWeight: 20 },
+    { id: 'seahorse', category: 'small', spawnWeight: 18 },
+    { id: 'starfish', category: 'small', spawnWeight: 15 },
+    
+    // Medium Fish (Medium Speed/Value)
+    { id: 'crab', category: 'medium', spawnWeight: 15 },
+    { id: 'jellyfish', category: 'medium', spawnWeight: 12 },
+    { id: 'angelfish', category: 'medium', spawnWeight: 10 },
+    { id: 'pufferfish', category: 'medium', spawnWeight: 8 },
+    { id: 'octopus', category: 'medium', spawnWeight: 7 },
+    
+    // Large Fish (Slow, High Value)
+    { id: 'turtle', category: 'large', spawnWeight: 6 },
+    { id: 'swordfish', category: 'large', spawnWeight: 5 },
+    { id: 'dolphin', category: 'large', spawnWeight: 4 },
+    { id: 'stingray', category: 'large', spawnWeight: 3 },
+    { id: 'shark', category: 'large', spawnWeight: 3 },
+    
+    // Boss Fish (High Value)
+    { id: 'whale', category: 'boss', spawnWeight: 2 },
+    { id: 'mantaray', category: 'boss', spawnWeight: 2 },
+    { id: 'hammerhead', category: 'boss', spawnWeight: 1 },
+    { id: 'giantSquid', category: 'boss', spawnWeight: 1 },
+    { id: 'seaDragon', category: 'boss', spawnWeight: 0.5, isBoss: true },
+    { id: 'kraken', category: 'boss', spawnWeight: 0.3, isBoss: true },
+    
+    // Special Fish (Triggers bonuses)
+    { id: 'goldenFish', category: 'special', spawnWeight: 5, isSpecial: true }
+];
+
 class FishManager {
     constructor(room) {
         this.room = room;
@@ -74,8 +110,12 @@ class FishManager {
     }
     
     spawnFish() {
+        // First select category (type)
         const type = this.selectFishType();
         const config = FISH_TYPES[type];
+        
+        // Then select species within that category
+        const species = this.selectSpeciesFromCategory(type);
         
         // Generate spawn position (from edges)
         const spawn = this.generateSpawnPosition();
@@ -88,7 +128,7 @@ class FishManager {
         );
         const duration = (distance / speed) * 1000;
         
-        // Generate multiplier
+        // Generate multiplier from category range
         const multiplier = Math.floor(
             config.multiplierRange[0] + 
             Math.random() * (config.multiplierRange[1] - config.multiplierRange[0] + 1)
@@ -99,7 +139,8 @@ class FishManager {
         
         const fish = {
             id: fishId,
-            type: type,
+            type: type,                          // Category for game mechanics
+            speciesId: species.id,               // Species for visual rendering
             x: spawn.x,
             y: spawn.y,
             startX: spawn.x,
@@ -111,7 +152,8 @@ class FishManager {
             captureProb: config.captureProb,
             hitRadius: config.hitRadius,
             size: config.size,
-            isSpecial: config.isSpecial || false,
+            isSpecial: config.isSpecial || species.isSpecial || false,
+            isBoss: species.isBoss || false,
             spawnTime: now,
             duration: duration,
             direction: target.x > spawn.x ? 1 : -1
@@ -122,17 +164,40 @@ class FishManager {
         // Broadcast fish spawn to all clients
         this.room.io.to(this.room.id).emit('fish_spawn', {
             fishId: fishId,
-            fishType: type,
+            fishType: type,                      // Category
+            speciesId: species.id,               // Species for client rendering
             position: { x: spawn.x, y: spawn.y },
             target: { x: target.x, y: target.y },
             speed: speed,
             multiplier: multiplier,
             size: config.size,
             duration: duration,
-            direction: fish.direction
+            direction: fish.direction,
+            isBoss: fish.isBoss,
+            isSpecial: fish.isSpecial
         });
         
         return fish;
+    }
+    
+    selectSpeciesFromCategory(category) {
+        const speciesInCategory = FISH_SPECIES.filter(s => s.category === category);
+        if (speciesInCategory.length === 0) {
+            // Fallback: return a default species
+            return { id: category, category: category, spawnWeight: 1 };
+        }
+        
+        const totalWeight = speciesInCategory.reduce((sum, s) => sum + s.spawnWeight, 0);
+        let random = Math.random() * totalWeight;
+        
+        for (const species of speciesInCategory) {
+            random -= species.spawnWeight;
+            if (random <= 0) {
+                return species;
+            }
+        }
+        
+        return speciesInCategory[0];
     }
     
     selectFishType() {

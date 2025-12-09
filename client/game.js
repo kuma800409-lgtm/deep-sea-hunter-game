@@ -78,7 +78,7 @@ const CANNON_POSITIONS = {
     right: { x: 770, y: 400, angle: 180 }
 };
 
-// Fish type colors
+// Fish type colors (category fallbacks)
 const FISH_COLORS = {
     small: { body: 0x00e5ff, glow: 0x27c8ff },
     medium: { body: 0xff7043, glow: 0xff6b35 },
@@ -87,13 +87,123 @@ const FISH_COLORS = {
     special: { body: 0xffc107, glow: 0xffc857 }
 };
 
-// Fish sizes
+// Species-specific colors (uses FISH_SPECIES from assetConfig.js if available)
+function getSpeciesColors(speciesId, fishType) {
+    // Try to get species from assetConfig
+    if (window.FISH_SPECIES) {
+        const species = window.FISH_SPECIES.find(s => s.id === speciesId);
+        if (species && species.color) {
+            // Generate glow color (lighter version)
+            const glow = lightenColor(species.color, 0.3);
+            return { body: species.color, glow: glow };
+        }
+    }
+    // Fallback to category colors
+    return FISH_COLORS[fishType] || FISH_COLORS.small;
+}
+
+// Helper to lighten a color for glow effect
+function lightenColor(color, amount) {
+    const r = Math.min(255, ((color >> 16) & 0xFF) + Math.floor(255 * amount));
+    const g = Math.min(255, ((color >> 8) & 0xFF) + Math.floor(255 * amount));
+    const b = Math.min(255, (color & 0xFF) + Math.floor(255 * amount));
+    return (r << 16) | (g << 8) | b;
+}
+
+// Fish sizes (category-based)
 const FISH_SIZES = {
     small: 45,
     medium: 70,
     large: 110,
     boss: 160,
     special: 80
+};
+
+// Get fish size based on species and category
+function getSpeciesSize(speciesId, fishType) {
+    const baseSize = FISH_SIZES[fishType] || 60;
+    // Try to get species size multiplier from assetConfig
+    if (window.FISH_SPECIES) {
+        const species = window.FISH_SPECIES.find(s => s.id === speciesId);
+        if (species && species.size) {
+            return Math.floor(baseSize * species.size);
+        }
+    }
+    return baseSize;
+}
+
+// ============== OBJECT POOLING ==============
+// Object pool for performance optimization - reuses game objects instead of creating/destroying
+
+class ObjectPool {
+    constructor(createFn, resetFn, initialSize = 20) {
+        this.createFn = createFn;
+        this.resetFn = resetFn;
+        this.pool = [];
+        this.active = new Set();
+        
+        // Pre-populate pool
+        for (let i = 0; i < initialSize; i++) {
+            const obj = this.createFn();
+            if (obj) {
+                obj.setActive(false);
+                obj.setVisible(false);
+                this.pool.push(obj);
+            }
+        }
+    }
+    
+    acquire() {
+        let obj;
+        if (this.pool.length > 0) {
+            obj = this.pool.pop();
+        } else {
+            obj = this.createFn();
+        }
+        
+        if (obj) {
+            obj.setActive(true);
+            obj.setVisible(true);
+            this.active.add(obj);
+        }
+        return obj;
+    }
+    
+    release(obj) {
+        if (!obj) return;
+        
+        this.resetFn(obj);
+        obj.setActive(false);
+        obj.setVisible(false);
+        this.active.delete(obj);
+        this.pool.push(obj);
+    }
+    
+    releaseAll() {
+        for (const obj of this.active) {
+            this.resetFn(obj);
+            obj.setActive(false);
+            obj.setVisible(false);
+            this.pool.push(obj);
+        }
+        this.active.clear();
+    }
+    
+    getActiveCount() {
+        return this.active.size;
+    }
+}
+
+// Global pools (initialized in create())
+let particlePool = null;
+let trailPool = null;
+
+// Performance tracking
+const PerformanceState = {
+    lastBackgroundUpdate: 0,
+    backgroundUpdateInterval: 33,  // ~30fps for background effects
+    maxParticles: 100,
+    particleCount: 0
 };
 
 function preload() {
@@ -130,14 +240,18 @@ function create() {
 function update(time, delta) {
     if (!GameState.gameStarted) return;
     
-    // Update fish animations
+    // Update fish animations (always at 60fps for smooth gameplay)
     updateFishAnimations(delta);
     
-    // Update bullet positions
+    // Update bullet positions (always at 60fps for smooth gameplay)
     updateBullets(delta);
     
-    // Update background parallax
-    updateParallax(delta);
+    // Throttle background updates to ~30fps for performance
+    const now = Date.now();
+    if (now - PerformanceState.lastBackgroundUpdate >= PerformanceState.backgroundUpdateInterval) {
+        PerformanceState.lastBackgroundUpdate = now;
+        updateParallax(delta);
+    }
     
     // Update auto-mode timer display
     if (GameState.autoMode) {
@@ -822,20 +936,24 @@ function removePlayerVisuals(playerId) {
 // ============== FISH ==============
 
 function spawnFish(data) {
-    const { fishId, fishType, position, target, speed, multiplier, size, duration, direction } = data;
+    const { fishId, fishType, speciesId, position, target, speed, multiplier, size, duration, direction, isBoss, isSpecial } = data;
     
     // Create fish container
     const fish = scene.add.container(position.x, position.y);
     fish.fishId = fishId;
     fish.fishType = fishType;
+    fish.speciesId = speciesId || fishType;  // Fallback to fishType if no speciesId
     fish.multiplier = multiplier;
     fish.targetX = target.x;
     fish.targetY = target.y;
     fish.speed = speed;
     fish.direction = direction;
+    fish.isBoss = isBoss || false;
+    fish.isSpecial = isSpecial || false;
     
-    const colors = FISH_COLORS[fishType];
-    const fishSize = FISH_SIZES[fishType];
+    // Get species-specific colors and size
+    const colors = getSpeciesColors(fish.speciesId, fishType);
+    const fishSize = getSpeciesSize(fish.speciesId, fishType);
     
     // Shadow (top-down view - fish shadow below)
     const shadow = scene.add.graphics();
